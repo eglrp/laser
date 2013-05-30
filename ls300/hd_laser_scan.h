@@ -1,0 +1,97 @@
+/*!
+ * \file hd_laser_scan.h
+ * \brief 
+ *
+ * Code by Joy.you
+ * Contact yjcpui(at)gmail(dot)com
+ *
+ * The hd laser scan
+ * Copyright (c) 2013, 海达数云
+ * All rights reserved.
+ *
+ */
+
+#ifndef HD_LASER_SCAN_H
+#define HD_LASER_SCAN_H
+
+/* Dependencies */
+#include <hd_plat_base.h>
+#include "hd_scan_data_pool.h"
+#include "hd_laser_control.h"
+#include "sickld/sickld.h"
+/*结构体定义*/
+
+typedef struct scan_job_t
+    {
+    sickld_t *sick;
+    laser_control_t control;
+    scan_pool_t pool;
+    ethread_t *thread_read;
+    ethread_t *thread_write;
+
+    //配置参数记录
+    e_uint32 speed;
+    e_uint32 resolution;
+    e_float64 start_angle_h; //水平起始角度
+    e_float64 end_angle_h; //水平终止角度
+    e_float64 start_angle_v[2]; //垂直起始角度，这里暂时固定分为两个扇区
+    e_float64 end_angle_v[2]; //垂直终止角度
+    e_uint32 active_sectors_num;
+
+    e_int32 state;
+    } scan_job_t;
+
+/*接口定义*/
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
+
+    /************************************************************************/
+    /* 与扫描仪建立连接，并初始化扫描参数信息                                                                    */
+    /************************************************************************/
+    e_int32 DEV_EXPORT sj_init(scan_job_t* sj);
+
+    /************************************************************************/
+    /* 与扫描仪断开连接                                                               */
+    /************************************************************************/
+    e_int32 DEV_EXPORT sj_destroy(scan_job_t *sj);
+
+    /************************************************************************
+     * 开始扫描,此时开启读写两个线程
+     * 读线程负责读取扫描数据，并写入共享队列
+     * 写线程负责读取共享队列数据，并写入到文件
+     ************************************************************************/
+    e_int32 DEV_EXPORT sj_start(scan_job_t *sj);
+
+    /************************************************************************
+     * 停止扫描
+     ************************************************************************/
+    e_int32 DEV_EXPORT sj_stop(scan_job_t *sj);
+
+    /************************************************************************
+     * 设置扫描速度范围参数
+     ************************************************************************/
+    e_int32 DEV_EXPORT sj_config(scan_job_t *sj, e_uint32 nSpeed,
+	    e_float64 resolution, const e_float64 HStartAngle,
+	    const e_float64 HEndAngle,
+	    const e_float64 * active_sector_start_angles,
+	    const e_float64 * const active_sector_stop_angles,
+	    const e_int32 num_active_sectors);
+
+    /************************************************************************
+     * 设置点云数据存储目录,灰度图存储目录
+     ************************************************************************/
+    e_int32 DEV_EXPORT sj_set_data_dir(scan_job_t *sj, char* ptDir,
+	    e_uint8 *grayDir);
+
+    /************************************************************************
+     *         根据当前水平角度范围和垂直角度范围，得到每一圈实际扫描数据和灰度图
+     ************************************************************************/
+    e_int32 DEV_EXPORT sj_filter_data(scan_job_t *sj);
+
+#ifdef __cplusplus
+    }
+#endif
+
+#endif /*HD_LASER_SCAN_H*/

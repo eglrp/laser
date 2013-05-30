@@ -1,0 +1,243 @@
+/* Android Event Queue
+ * Implemented through static cyclic queue
+ *
+ * author: Zaicheng Qi
+ * email: vmlinz@gmail.com
+ * date: Mon Nov 09 09:45:42 2009
+ */
+#ifdef ANDROID_OS
+
+#include <arch/emap_event_api.h>
+#include <arch/emap_thread_api.h>
+#include <arch/emap_timer_api.h>
+
+#include "emap_event_queue_android.h"
+
+#include <android/log.h>
+#include <sched.h>
+
+#ifdef DMSG
+#undef DMSG
+#define DMSG
+#endif
+
+#define MAXEVENTS 128
+
+/* Event Queue Structure
+ */
+static struct
+{
+	mutex_t lock; // queue lock
+	int active;   // queue active flag
+	int head;     // queue head
+	int tail;     // queue tail
+	EMAP_Event event[MAXEVENTS];
+}EventQueue;
+
+/* Event Lock
+ * Event lock structure for a single event
+ */
+static struct
+{
+	mutex_t lock;
+	int safe;
+}EventLock;
+
+static e_uint32 emap_event_queue_add_event(EMAP_Event* event)
+{
+	int tail, added;
+
+	tail = (EventQueue.tail +1) % MAXEVENTS;
+	if(tail == EventQueue.head){
+		added = 0;
+	}else{
+		//DMSG((STDOUT,"EventQueue.tail:%d\n", tail));
+		EventQueue.event[EventQueue.tail] = *event;
+		EventQueue.tail = tail;
+		added = 1;
+	}
+	return added;
+}
+
+static e_uint32 emap_event_queue_cut_event(int spot)
+{
+	if(spot == EventQueue.head){
+		EventQueue.head = (EventQueue.head +1) % MAXEVENTS;
+		return EventQueue.head;
+	}else
+		if((spot + 1) % MAXEVENTS == EventQueue.tail){
+			EventQueue.tail = spot;
+			return EventQueue.tail;
+		}else
+		{
+			int here, next;
+			if(--EventQueue.tail < 0){
+				EventQueue.tail = MAXEVENTS - 1;
+			}
+			for(here = spot; here != EventQueue.tail; here = next){
+				next = (here + 1) % MAXEVENTS;
+				EventQueue.event[here] = EventQueue.event[next];
+			}
+			return spot;
+		}
+}
+
+/* lock the event queue, take a peep at it, then unlock it
+ */
+
+static e_uint32 emap_event_queue_peep_events(EMAP_Event* events, int numevents, EventAction action)
+{
+	int i, used;
+	if(!EventQueue.active){
+		return -1;
+	}
+
+	used = 0;
+	if(Emap_mutexlock(&EventQueue.lock) == 1){
+		//DMSG((STDOUT,"EventQ locked \n"));
+
+		if(action == EMAP_ADDEVENT)
+		{
+			for(i = 0; i < numevents; i++){
+				DMSG((STDOUT,"add event\n"));
+				used += emap_event_queue_add_event(&events[i]);
+			}
+		}
+		else
+		{
+			EMAP_Event tmpevent;
+			int spot;
+			if(events == NULL){
+				action = EMAP_PEEPEVENT;
+				numevents = 1;
+				events = &tmpevent;
+			}
+			spot = EventQueue.head;
+			while((used < numevents) && (spot != EventQueue.tail)){
+				events[used++] = EventQueue.event[spot];
+				if(action == EMAP_GETEVENT){
+					//DMSG((STDOUT,"get Event: type %s\n",(char *)event_to_str(EventQueue.event[spot].type)));
+					spot = emap_event_queue_cut_event(spot);
+				}else{
+					spot = (spot + 1) % MAXEVENTS;
+				}
+			}
+		}
+		Emap_mutexunlock(&EventQueue.lock);
+	}else{
+		DMSG((STDOUT,"Couldn't lock the event queue\n"));
+		used = -1;
+	}
+	return used;
+}
+
+e_uint32 emap_event_queue_lock(void)
+{
+	if(EventLock.safe){
+		Emap_mutexlock(&EventLock.lock);
+		EventQueue.active = 0;
+		Emap_mutexunlock(&EventLock.lock);
+		return 0;
+	}
+	else
+		return -1;
+}
+
+e_uint32 emap_event_queue_unlock(void)
+{
+	if(EventLock.safe){
+		Emap_mutexlock(&EventLock.lock);
+		EventQueue.active = 1;
+		Emap_mutexunlock(&EventLock.lock);
+		return 0;
+	}
+	else
+		return -1;
+}
+
+void emap_event_queue_stop(void)
+{
+	/* clear ems event queue
+	 */
+	EventQueue.active = 0;
+	EventQueue.head = 0;
+	EventQueue.tail = 0;
+	EventLock.safe = 0;
+
+	DMSG((STDOUT,"destroying event mutexes"));
+	Emap_destroymutex(&(EventLock.lock));
+	Emap_destroymutex(&(EventQueue.lock));
+}
+
+e_uint32 emap_event_queue_init(e_uint32 flags)
+{
+	Emap_createmutex(&(EventQueue.lock));
+	Emap_createmutex(&(EventLock.lock));
+
+	EventQueue.active = 1;
+	EventLock.safe = 1;
+
+	return 0;
+}
+
+e_uint32 emap_event_queue_status(void)
+{
+	Emap_mutexlock(&EventLock.lock);
+	e_uint32 ret = EventQueue.active;
+	Emap_mutexunlock(&EventLock.lock);
+
+	return !ret?0:1;
+}
+
+e_uint32 emap_event_queue_has_event(void)
+{
+	return (emap_event_queue_peep_events(NULL, 0, EMAP_PEEPEVENT) > 0);
+}
+
+e_uint32 emap_event_queue_push_event(EMAP_Event* event)
+{
+	DMSG((STDOUT,"Emap_EventQPushEvent: push event\n"));
+	if(emap_event_queue_peep_events(event, 1, EMAP_ADDEVENT) <= 0){
+		return -1;
+	}
+	return 1;
+}
+
+e_uint32 emap_event_queue_pump_event(EMAP_Event* event)
+{
+	DMSG((STDOUT,"calling Emap_EventQPumpEvent\n"));
+	if(emap_event_queue_peep_events(event, 1, EMAP_GETEVENT) <= 0){
+		DMSG((STDOUT,"Event Fetch Failded\n"));
+		return 0;
+	}
+	else{
+		DMSG((STDOUT,"Event Fetched: type %d\n", event->type));
+		return 1;
+	}
+}
+
+e_uint32 emap_event_queue_wait_event(EMAP_Event* event)
+{
+	DMSG(("calling event_queue_wait_event\n"));
+	while(1){
+		if(emap_event_queue_peep_events(event, 1, EMAP_GETEVENT) <= 0){
+			//Emap_Delay(1);
+			sched_yield();
+		}
+		else{
+			DMSG((STDOUT,"event type %d\n", event->type));
+			return 1;
+		}
+	}
+}
+
+e_uint32 emap_event_queue_peep_event(EMAP_Event* event)
+{
+	if(emap_event_queue_peep_events(event, 1, EMAP_PEEPEVENT) <= 0){
+		return -1;
+	}
+	DMSG((STDOUT,"EventPeeped: type %d\n", event->type));
+	return 1;
+}
+
+#endif

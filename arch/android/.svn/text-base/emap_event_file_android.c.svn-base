@@ -1,0 +1,298 @@
+/*
+ * file: emap_event_file_android.cpp
+ * date: 20100517
+ * author: vmlnz
+ */
+
+#ifdef ANDROID_OS
+
+#include <arch/emap_event_api.h>
+#include <arch/emap_com_api.h>
+#include <arch/emap_thread_api.h>
+
+/* 
+#include <arch/emap_keyborad_api.h>
+#include <arch/emap_process_api.h>
+#include <arch/emap_system_api.h> */
+
+#include "../emap_inter_event.h"
+#include "emap_event_queue_android.h"
+
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+
+
+
+#ifdef DMSG
+#include <android/log.h>
+#undef DMSG
+#define DMSG
+#endif
+
+void
+Emap_SetEventData(e_uint32 wparam, e_uint32 lparam, EMAP_Event *event)
+{
+	event_data_t *eventdata;
+
+	if(lparam ==0x0)
+		return;
+	//	1 lock eventman
+	//	2 set data and free node
+	//	3 unlock eventman
+	eventdata = (event_data_t*)lparam;
+	event->type = eventdata->usr_msg;
+	event->user.wparam = eventdata->wparam;
+	event->user.lparam = eventdata->lparam;
+
+	internal_eventman_free(eventdata);
+}
+
+#ifdef DMSG
+char* event_str[] =
+{
+	"EMAP_NOEVENT", /* Unused (do not remove) */
+	"EMAP_ACTIVEEVENT", /* Application gains visibility */
+	"EMAP_INACTIVEEVENT", /* Application loses visibility */
+	"EMAP_KEYDOWN", /* Keys pressed */
+	"EMAP_CHAR", /* key values */
+	"EMAP_KEYUP", /* Keys released */
+	"EMAP_MOUSEMOTION", /* Mouse moved */
+	"EMAP_MOUSEBUTTONDOWN", /* Mouse button pressed */
+	"EMAP_MOUSEBUTTONUP", /* Mouse button released */
+	"EMAP_VIDEORESIZE", /* User resized video mode */
+	"EMAP_VIDEOEXPOSE", /* Screen needs to be redrawn */
+	"EMAP_TIMER", /* Reserved for future use.. */
+	"EMAP_USBIN", /* usb message in */
+	"EMAP_USBOUT", /* usb message out */
+	"EMAP_SDCARDIN", /* sdcard message in */
+	"EMAP_SDCARDOUT", /* sdcard message out */
+	"EMAP_USEREVENT",
+	"EMAP_COMMEVENT",
+	"EMAP_COMMRESET",
+	"EMAP_QUIT", /* User-requested quit */
+	"EMAP_UNKNOWN",
+	"EMAP_NUMEVENTS"
+};
+
+char *event_to_str(EMAP_EventType type)
+{
+	if(type >= sizeof(event_str)/sizeof(char*))
+		type = sizeof(event_str)/sizeof(char*)-2;
+	return event_str[type];
+}
+#endif
+
+/** Main thread(gui thread) event operations
+ * pump, peek, post, and send events to/from main thread event queue
+ */
+e_uint32
+Emap_PumpEvents(EMAP_Event *event)
+{
+	// if(!Emap_SystemState())
+	// 	return 0;
+	if(!emap_event_queue_status())
+		return 0;
+	emap_event_queue_wait_event(event);
+	//DMSG((STDOUT,"event pumped: type:%d, name:%s\n", event->type, event_to_str(event->type)));
+	return 1;
+}
+
+e_uint32
+Emap_PeekEvents(EMAP_Event *event, e_uint32 remove_flag)
+{
+	// if(!Emap_SystemState())
+	// 	return 0;
+	if(!emap_event_queue_status())
+		return 0;
+
+	switch(remove_flag)
+	{
+	case EMAP_PM_REMOVE:
+		emap_event_queue_pump_event(event);
+		break;
+	case EMAP_PM_NOREMOVE:
+		emap_event_queue_peep_event(event);
+		break;
+	default:
+		break;
+	}
+	return 1;
+}
+
+void
+Emap_PostEvents(e_uint32 msg, e_uint32 wparam, e_uint32 lparam)
+{
+	if(!emap_event_queue_status())
+		return;
+
+	EMAP_Event event =
+		{	0};
+
+	event.type = msg;
+	event.user.wparam = wparam;
+	event.user.lparam = lparam;
+
+	emap_event_queue_push_event(&event);
+
+	DMSG((STDOUT,"posting event to queue, type:%d, name:%s", event.type,
+	      event_to_str(event.type)));
+
+	return;
+}
+
+void
+Emap_SendEvents(e_uint32 msg, e_uint32 wparam, e_uint32 lparam)
+{
+	Emap_PostEvents(msg, wparam, lparam);
+}
+
+/** Event operations for other threads
+ */
+e_uint8
+Emap_PostThreadEvent(ethread_t *thread, e_uint32 msg,
+		    e_uint32 wparam, e_uint32 lparam)
+{
+	if(!thread || !Emap_threadstate(thread))
+	{
+		DMSG((STDOUT,"Emap_PostThreadEvent: thread->queue==0x0"));
+		return 0;
+	}
+	return Emap_QueuePost(thread->queue, msg, wparam, lparam);
+}
+
+e_uint32
+Emap_QueuePump(void *queue, EMAP_Event *event)
+{
+	e_uint32 rsize = 0;
+	event_data_t *event_data = NULL;
+
+	if(!queue)
+		return 0;
+
+	DMSG((STDOUT,"pumping event from thread\n"));
+	rsize = read(((int*)(queue))[0],
+		     (void*)&event_data,
+		     sizeof(event_data));
+
+	DMSG((STDOUT,"thread event pumped:%p, size:%d", event_data, rsize));
+	if(rsize != sizeof(event_data))
+	{
+		return 0;
+	}
+
+	DMSG((STDOUT,"set event data from event pool\n"));
+	Emap_SetEventData(0, (e_uint32)event_data, event);
+
+	return 1;
+}
+
+e_uint32
+Emap_QueuePeek(void *queue, EMAP_Event *event, e_uint32 remove)
+{
+	if(!queue)
+		return 0;
+	return 1;
+}
+
+e_uint32
+Emap_QueuePost(void *queue, e_uint32 msg, e_uint32 wparam, e_uint32 lparam)
+{
+	if(!queue)
+		return 0;
+
+	e_uint32 wsize = 0;
+	event_data_t *event;
+
+	DMSG((STDOUT,"posting event to thread queue"));
+	/* 1 cal user event position, and make message data */
+	event = internal_eventman_alloc();
+	if(event== 0x0)
+	{
+		DMSG((STDOUT,"event man does not have enough memory, post failed\n"));
+		return 0;
+	}
+	DMSG((STDOUT,"internal event pool allocated"));
+
+	/* 2 set data for user event table */
+	event->usr_msg = msg;
+	event->wparam = wparam;
+	event->lparam = lparam;
+
+	/* 3 send event pointer to thread pipe */
+	DMSG((STDOUT,"posting thread event to pipe"));
+	wsize = write(((int*)(queue))[1], &event, sizeof(event));
+
+	if(wsize != sizeof(event))
+	{
+		return 0;
+	}
+	DMSG((STDOUT,"thread event posted"));
+	return 1;
+}
+
+/* extern e_uint32 g_key_state,g_mouse_state; */
+e_uint32 g_key_state,g_mouse_state;
+
+e_uint32 emap_push_event_with_params(EMAP_EventType type, ...)
+{
+	if(!emap_event_queue_status())
+		return 0;
+
+	EMAP_Event event = {0};
+
+	va_list arg = {0};
+
+	va_start(arg, type);
+	event.type = type;
+
+	DMSG((STDOUT,"sending event: type:%s \n",event_to_str(type)));
+	switch(type)
+	{
+	case EMAP_MOUSEMOTION:
+	{
+		g_mouse_state = event.motion.state = EMAP_PRESSED;
+		event.motion.x = va_arg(arg, int);
+		event.motion.y = va_arg(arg, int);
+		event.motion.xrel = va_arg(arg, int);
+		event.motion.yrel = va_arg(arg, int);
+		break;
+	}
+	case EMAP_MOUSEBUTTONDOWN:
+	case EMAP_MOUSEBUTTONUP:
+	{
+		g_mouse_state = event.button.state = type == EMAP_MOUSEBUTTONDOWN ? EMAP_PRESSED : EMAP_RELEASE;
+		event.button.x = va_arg(arg, int);
+		event.button.y = va_arg(arg, int);
+		break;
+	}
+	case EMAP_TIMER:
+	{
+		event.timer.timer_id = va_arg(arg, int);
+		DMSG((STDOUT,"TIMER id:%D", event.timer.timer_id));
+		break;
+	}
+	case EMAP_CHAR:
+	{
+		g_key_state = event.key.state = EMAP_RELEASE;
+		event.key.key = va_arg(arg, int);
+		break;
+	}
+	case EMAP_KEYDOWN:
+	case EMAP_KEYUP:
+	{
+		g_key_state = event.key.state = type == EMAP_KEYDOWN ? EMAP_PRESSED : EMAP_RELEASE;
+		event.key.key = va_arg(arg, int);
+		break;
+	}
+	default:
+		return 0;
+		break;
+	}
+
+	va_end(arg);
+	return emap_event_queue_push_event(&event);
+}
+
+#endif /*ANDROID_OS*/

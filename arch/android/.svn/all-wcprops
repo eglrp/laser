@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/HiMapServer/!svn/ver/714/src/emap_library/emap_arch/android_sdk
+END
+emap_com_file_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_com_file_android.c
+END
+emap_mem_file_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_mem_file_android.c
+END
+emap_timer_file_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_timer_file_android.c
+END
+emap_event_file_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/HiMapServer/!svn/ver/714/src/emap_library/emap_arch/android_sdk/emap_event_file_android.c
+END
+emap_event_queue_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_event_queue_android.c
+END
+emap_thread_file_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 95
+/svn/HiMapServer/!svn/ver/714/src/emap_library/emap_arch/android_sdk/emap_thread_file_android.c
+END
+emap_dbg_print_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_dbg_print_android.c
+END
+emap_file_api_android.c
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_file_api_android.c
+END
+emap_event_queue_android.h
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/HiMapServer/!svn/ver/10/src/emap_library/emap_arch/android_sdk/emap_event_queue_android.h
+END
