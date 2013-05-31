@@ -111,6 +111,7 @@ static int set_speed(int fd, int speed) {
 			return 1;
 		}
 	}
+	return 0;
 }
 /**
  *@brief   设置串口数据位，停止位和效验位

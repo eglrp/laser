@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 	if (e_failed(ret))
 		goto OUT2;
 
-	DMSG((STDOUT, "Initialize end.\r\n"));
+	DMSG((STDOUT, "\tInitialize end.\r\n"));
 
 	/* Set the desired sector configuration */
 	ret = sld_set_temp_scan_areas(sickld, &sector_start_ang, &sector_stop_ang,
@@ -73,6 +73,9 @@ int main(int argc, char *argv[])
 	ret = sld_print_sector_config(sickld);
 	if (e_failed(ret))
 		goto OUT2;
+
+
+	Delay(1000);
 
 	/* Acquire some range measurements */
 	for (i = 0; i < 10; i++)

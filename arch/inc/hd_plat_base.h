@@ -248,9 +248,9 @@ do{ \
 	*/
 #define e_check(_arg_,...) \
 ({ \
-	if(!(_arg_)) \
+	if((_arg_)) \
 		DMSG((STDOUT,"%s:%d:%s",__FILE__,__LINE__,#_arg_ " trace failed" #__VA_ARGS__ "\r\n")); \
-	!(_arg_); \
+	(_arg_); \
 })
 
 

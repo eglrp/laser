@@ -26,10 +26,12 @@
 
 #define SOCKET_ERROR -1
 
-static struct sigaction sa_old={0};
+static struct sigaction sa_old =
+{ 0 };
 static volatile int is_inited = 0;
 
-void Socket_Init() {
+void Socket_Init()
+{
 	if (is_inited++)
 		return;
 	/*在linux下写socket的程序的时候，如果尝试send到一个disconnected socket上，
@@ -40,7 +42,8 @@ void Socket_Init() {
 	sigaction(SIGPIPE, &sa, &sa_old);
 }
 
-void Socket_Quit() {
+void Socket_Quit()
+{
 	if (!is_inited)
 		return;
 	is_inited--;
@@ -50,7 +53,8 @@ void Socket_Quit() {
 
 //  open/close/state socket device
 e_int32 Socket_Open(socket_t **socket_ptr, const char *socket_addr,
-		const e_uint32 port, e_int32 type) {
+		const e_uint32 port, e_int32 type)
+{
 	int sockfd;
 	socket_t *skt = (socket_t *) malloc(sizeof(socket_t));
 	e_assert(skt, E_ERROR_BAD_ALLOCATE);
@@ -60,7 +64,8 @@ e_int32 Socket_Open(socket_t **socket_ptr, const char *socket_addr,
 	Socket_Init();
 
 	/*创建服务器端套接字--IPv4协议*/
-	switch (type) {
+	switch (type)
+	{
 	case E_TCP:
 		/*面向连接通信，TCP协议*/
 		sockfd = socket(PF_INET, SOCK_STREAM, 0);
@@ -71,7 +76,8 @@ e_int32 Socket_Open(socket_t **socket_ptr, const char *socket_addr,
 		break;
 	}
 	/*check sockfd*/
-	if (e_failed(sockfd)) {
+	if (e_failed(sockfd))
+	{
 		free(skt);
 		return E_ERROR_IO;
 	}
@@ -88,10 +94,13 @@ e_int32 Socket_Open(socket_t **socket_ptr, const char *socket_addr,
 	return E_OK;
 }
 
-void Socket_Close(socket_t **socket) {
+void Socket_Close(socket_t **socket)
+{
 	int socketfd;
-	if (socket && (*socket)) {
-		if ((*socket)->state) {
+	if (socket && (*socket))
+	{
+		if ((*socket)->state)
+		{
 			socketfd = (int) ((*socket)->priv);
 			if (socketfd > 0)
 				close(socketfd);
@@ -101,12 +110,14 @@ void Socket_Close(socket_t **socket) {
 	}
 }
 
-e_int32 Socket_State(socket_t *socket) {
+e_int32 Socket_State(socket_t *socket)
+{
 	e_assert((socket && socket->state), E_ERROR);
 	return E_OK;
 }
 
-e_int32 Socket_Ioctrl(socket_t *socket, e_int32 type) {
+e_int32 Socket_Ioctrl(socket_t *socket, e_int32 type)
+{
 	int sockfd;
 	e_assert((socket && socket->state), E_ERROR);
 	sockfd = (int) socket->priv;
@@ -115,7 +126,8 @@ e_int32 Socket_Ioctrl(socket_t *socket, e_int32 type) {
 	e_assert((fd_flags >= 0), E_ERROR_IO);
 
 	/* Set the new flags */
-	switch (type) {
+	switch (type)
+	{
 	case E_BLOCK:
 		fd_flags = fcntl(sockfd, F_SETFL, fd_flags & (~O_NONBLOCK));
 		break;
@@ -132,7 +144,8 @@ e_int32 Socket_Ioctrl(socket_t *socket, e_int32 type) {
 
 //  select/bind/listen/connect/accept socket connection
 /* timeout <= 0 表示永不超时 */
-e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec) {
+e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
+{
 	int sockfd, ret;
 	fd_set inputs, checkfds;
 	struct timeval timeout;
@@ -146,7 +159,8 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec) {
 	//把要检测的句柄sockfd，加入到集合里。
 	FD_SET(sockfd, &inputs);
 
-	while (1) {
+	while (1)
+	{
 		checkfds = inputs;
 		/*如果参数timeout设为NULL则表示select（）没有timeout
 		 执行成功则返回文件描述词状态已改变的个数，如果返回0代表在描述词状态改变前已超过timeout时间，
@@ -157,27 +171,34 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec) {
 		 EINVAL 参数n 为负值。
 		 ENOMEM 核心内存不足
 		 */
-		switch (type) {
+		switch (type)
+		{
 		case E_READ:
 			//DMSG(( STDOUT,"Socket_Select FD=%d timeout=%dus",sockfd, timeout_usec));
-			if (timeout_usec > 0) {
+			if (timeout_usec > 0)
+			{
 				timeout.tv_sec = (long) (timeout_usec / 1000000);
 				timeout.tv_usec = (long) (timeout_usec % 1000000);
 				ret = select(sockfd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
 						&timeout);
-			} else {
+			}
+			else
+			{
 				ret = select(sockfd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
 						NULL);
 			}
 			//DMSG((STDOUT,"Socket_Select %d socket can read/write",ret));
 			break;
 		case E_WRITE:
-			if (timeout_usec > 0) {
+			if (timeout_usec > 0)
+			{
 				timeout.tv_sec = (long) (timeout_usec / 1000000);
 				timeout.tv_usec = (long) (timeout_usec % 1000000);
 				ret = select(sockfd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
 						&timeout);
-			} else {
+			}
+			else
+			{
 				ret = select(sockfd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
 						NULL);
 			}
@@ -186,15 +207,18 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec) {
 			return E_ERROR_INVALID_PARAMETER;
 		}
 
-		if (e_check(ret!=0,"Socket select time out.")) {
+
+		if (e_check(ret==0,"Socket select time out.\r\n"))
+		{
 			return E_ERROR_TIME_OUT;
 		}
-//		e_assert(ret!=0, E_ERROR_TIME_OUT);
-		//超时
-		e_assert(ret>0, E_ERROR_IO);
-		//ＩＯ异常
+		else if(e_check(ret==-1,"Socket select error.\r\n"));
+		{
+			return E_ERROR_IO;
+		}
 
-		switch (type) {
+		switch (type)
+		{
 		case E_READ:
 			ret = FD_ISSET(sockfd, &checkfds);
 			e_assert(ret, E_ERROR_IO);
@@ -214,7 +238,8 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec) {
 	return E_ERROR;
 }
 
-e_int32 Socket_Bind(socket_t *socket) {
+e_int32 Socket_Bind(socket_t *socket)
+{
 	int sockfd;
 	int ret;
 	struct sockaddr_in peer_address;
@@ -228,7 +253,8 @@ e_int32 Socket_Bind(socket_t *socket) {
 	/*监听的IP可以为空*/
 	if (strlen(socket->ip_address) == 0)
 		peer_address.sin_addr.s_addr = htonl(INADDR_ANY);
-	else {
+	else
+	{
 		ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
 		e_assert(ret, E_ERROR_INVALID_ADDRESS);
 	}
@@ -241,7 +267,8 @@ e_int32 Socket_Bind(socket_t *socket) {
 }
 
 /*we never check that whether the socket is binded,just return error code E_ERROR_IO*/
-e_int32 Socket_Listen(socket_t *socket) {
+e_int32 Socket_Listen(socket_t *socket)
+{
 	int sockfd;
 	int ret;
 	e_assert((socket && socket->state), E_ERROR);
@@ -252,7 +279,8 @@ e_int32 Socket_Listen(socket_t *socket) {
 	return E_OK;
 }
 
-e_int32 Socket_Connect(socket_t *socket) {
+e_int32 Socket_Connect(socket_t *socket)
+{
 	int sockfd;
 	int ret;
 	struct sockaddr_in peer_address;
@@ -282,7 +310,8 @@ e_int32 Socket_Connect(socket_t *socket) {
  它从内核中取出已经建立的客户连接，然后把这个已经建立的连接返回给用户程序，此时用户程序就可以与自己的客户进行点到点的通信了。
 
  */
-e_int32 Socket_Accept(socket_t *socket, socket_t **socket_c) {
+e_int32 Socket_Accept(socket_t *socket, socket_t **socket_c)
+{
 	int sockfd;
 	int ret;
 	socklen_t addr_len;
@@ -316,7 +345,8 @@ e_int32 Socket_Accept(socket_t *socket, socket_t **socket_c) {
 }
 
 //  read/write socket data
-e_int32 Socket_Recv(socket_t *socket, e_uint8 *buffer, e_uint32 blen) {
+e_int32 Socket_Recv(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
+{
 	int sockfd;
 	int byteRecvied = 0, byteCount = 0;
 	e_assert((socket && socket->state), E_ERROR);
@@ -342,20 +372,25 @@ e_int32 Socket_Recv(socket_t *socket, e_uint8 *buffer, e_uint32 blen) {
 	 */
 
 	//接收信息
-	while (byteRecvied != blen) {
+	while (byteRecvied != blen)
+	{
 		/* get bytes from port */
 		byteCount = recv(sockfd, buffer + byteRecvied, blen - byteRecvied, 0);
+		if (byteCount <= 0)
+			break;
 		byteRecvied += byteCount;
 
 		/* if no bytes read timeout return byteRecvied */
-		if (byteCount == 0) {
+		if (byteCount == 0)
+		{
 			break;
 		}
 	}
 	return byteRecvied;
 }
 
-e_int32 Socket_Send(socket_t *socket, e_uint8 *buffer, e_uint32 blen) {
+e_int32 Socket_Send(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
+{
 	int sockfd;
 	int byteSend = 0, byteCount = 0;
 	e_assert((socket && socket->state), E_ERROR);
@@ -384,13 +419,17 @@ e_int32 Socket_Send(socket_t *socket, e_uint8 *buffer, e_uint32 blen) {
 	 断开的话，调用send的进程会接收到一个SIGPIPE信号，进程对该信号的默认处理是进程终止。
 	 */
 	//发送信息
-	while (byteSend != blen) {
+	while (byteSend != blen)
+	{
 		/* get bytes from port */
 		byteCount = send(sockfd, buffer + byteSend, blen - byteSend, 0);
+		if (byteCount <= 0)
+			break;
 		byteSend += byteCount;
 
 		/* if no bytes send return byteSend */
-		if (byteCount == 0) {
+		if (byteCount == 0)
+		{
 			break;
 		}
 	}
