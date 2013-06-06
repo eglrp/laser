@@ -12,7 +12,7 @@
  */
 
 #if TEST_CONTROL
-#include "hd_laser_control.h"
+#include <ls300/hd_laser_control.h>
 
 int main(){
 	int ret;
