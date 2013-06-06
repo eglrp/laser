@@ -125,7 +125,7 @@ inline void ByteStreamInIstream::getBytes(U8* bytes, const U32 num_bytes)
   stream.read((char*)bytes, num_bytes);
   if (!stream.good())
   {
-    throw EOF;
+	  throw EOF;
   }
 }
 

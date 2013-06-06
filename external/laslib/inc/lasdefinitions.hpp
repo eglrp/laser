@@ -159,7 +159,7 @@ public:
   LASattribute(U8 size)
   {
 	//TODO:不处理
-    //if (size == 0) throw;
+    if (size == 0) throw;
     memset(this, 0, sizeof(LASattribute));
     scale[0] = scale[1] = scale[2] = 1.0;
     this->options = size;
@@ -167,9 +167,10 @@ public:
 
   LASattribute(U32 type, const char* name, const char* description=0, U32 dim=1)
   {
-//    if (type > LAS_ATTRIBUTE_F64) throw;
-//    if ((dim < 1) || (dim > 3)) throw;
-//    if (name == 0) throw;
+    if (type > LAS_ATTRIBUTE_F64) throw;
+    if ((dim < 1) || (dim > 3)) throw;
+    if (name == 0) throw;
+
     memset(this, 0, sizeof(LASattribute));
     scale[0] = scale[1] = scale[2] = 1.0;
     this->data_type = (dim-1)*10+type+1;
