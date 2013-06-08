@@ -273,6 +273,7 @@ e_int32 hl_turntable_stop(laser_control_t *lc)
 e_int32 hl_turntable_is_stopped(laser_control_t *lc)
 {
 	e_assert(lc&&lc->state, E_ERROR_INVALID_STATUS);
+	//hl_turntable_get_angle(lc);
 	return (STEP_TO_ANGLE(lc->current_angle) >= lc->end_steps);
 }
 //设置转台参数//设置旋转速度,区域

@@ -62,8 +62,11 @@ e_int32 fsocket_send(fsocket_t *fs, e_uint8 *msg, e_uint32 mlen,
 	e_int32 ret;
 	e_assert(fs&&fs->state, E_ERROR_INVALID_HANDLER);
 	ret = send_one_msg(fs, msg, mlen, timeout_usec);
+	e_assert(ret>0, ret);
 	//处理完成，提醒可以发下一个请求了,非阻塞的请求模式
 	ret = semaphore_post(&fs->send_sem);
+	e_assert(ret>0, ret);
+	return E_OK;
 }
 
 e_int32 fsocket_recv(fsocket_t *fs, e_uint8 *recv_buf, e_uint32 recv_len,
@@ -94,7 +97,9 @@ e_int32 fsocket_recv(fsocket_t *fs, e_uint8 *recv_buf, e_uint32 recv_len,
 		{
 			DMSG((STDOUT, "取到过时消息:ERROR:request id != fs->req_id"));
 		}
+		return E_OK;
 	}
+	return ret;
 }
 
 e_int32 fsocket_recv_success(fsocket_t *fs, e_uint8 *success_reply,
@@ -159,7 +164,8 @@ e_int32 fsocket_request(fsocket_t *fs, e_uint8 *msg, e_uint32 mlen,
 		goto END;
 
 //等待回复
-	DMSG((STDOUT, "[%s_%u]FACK SOCKET  wait for reply...\r\n", fs->name, fs->id));
+	DMSG(
+			(STDOUT, "[%s_%u]FACK SOCKET  wait for reply...\r\n", fs->name, fs->id));
 	elapsed_time = GetTickCount() - beg_time;
 
 	if (timeout_usec <= 0) //没有设置超时,死等
@@ -190,8 +196,8 @@ e_int32 fsocket_request(fsocket_t *fs, e_uint8 *msg, e_uint32 mlen,
 	e_assert(ret, E_ERROR_TIME_OUT);
 
 	elapsed_time = GetTickCount() - beg_time;
-	DMSG((STDOUT, "[%s_%u]FACK SOCKET  done.use [%u]Ms...\r\n", fs->name, fs->id, elapsed_time
-			/ 1000));
+	DMSG(
+			(STDOUT, "[%s_%u]FACK SOCKET  done.use [%u]Ms...\r\n", fs->name, fs->id, elapsed_time / 1000));
 	return E_OK;
 }
 
@@ -258,7 +264,8 @@ static e_uint32 send_one_msg(fsocket_t *fs, e_uint8* msg, e_uint32 mlen,
 
 	if (mlen + 6 >= MSG_MAX_LEN)
 	{ //消息超长了
-		DMSG((STDOUT, "[%s_%u]FACK SOCKET send error:msg is too long...\r\n", fs->name, fs->id));
+		DMSG(
+				(STDOUT, "[%s_%u]FACK SOCKET send error:msg is too long...\r\n", fs->name, fs->id));
 		return E_ERROR;
 	}
 
@@ -269,17 +276,20 @@ static e_uint32 send_one_msg(fsocket_t *fs, e_uint8* msg, e_uint32 mlen,
 	sprintf((char*) buf, "#%02X%02X%s@", fs->id, ++fs->rq_id, msg);
 
 	//请求发送锁
-	DMSG((STDOUT, "[%s_%u]FACK SOCKET acquaire send sem...\r\n", fs->name, fs->id));
+	DMSG(
+			(STDOUT, "[%s_%u]FACK SOCKET acquaire send sem...\r\n", fs->name, fs->id));
 	ret = semaphore_timeoutwait(&fs->send_sem, timeout_usec);
 	e_assert(ret, E_ERROR_TIME_OUT);
 
-	DMSG((STDOUT, "[%s_%u]FACK SOCKET request try send ...\r\n", fs->name, fs->id));
+	DMSG(
+			(STDOUT, "[%s_%u]FACK SOCKET request try send ...\r\n", fs->name, fs->id));
 	while (fs->state)
 	{
 		elapsed_time = GetTickCount() - beg_time;
 		if (elapsed_time >= timeout_usec)
 		{
-			DMSG((STDOUT, "[%s_%u]FACK SOCKET send timeout...\r\n", fs->name, fs->id));
+			DMSG(
+					(STDOUT, "[%s_%u]FACK SOCKET send timeout...\r\n", fs->name, fs->id));
 			return E_ERROR_TIME_OUT;
 		}
 		ret = sc_select(fs->connect, E_WRITE, elapsed_time);
@@ -293,7 +303,8 @@ static e_uint32 send_one_msg(fsocket_t *fs, e_uint8* msg, e_uint32 mlen,
 		if (ret <= 0)
 			continue;
 
-		DMSG((STDOUT, "[%s_%u]FACK SOCKET send_one_msg done.\r\n", fs->name, fs->id));
+		DMSG(
+				(STDOUT, "[%s_%u]FACK SOCKET send_one_msg done.\r\n", fs->name, fs->id));
 		return E_OK;
 	}
 
@@ -304,7 +315,8 @@ static e_uint32 wait_for_reply(fsocket_t *fs, e_uint32 timeout_usec)
 {
 	e_int32 ret;
 
-	DMSG((STDOUT, "[%s_%u]FACK SOCKET wait for reply ...\r\n", fs->name, fs->id));
+	DMSG(
+			(STDOUT, "[%s_%u]FACK SOCKET wait for reply ...\r\n", fs->name, fs->id));
 	//等待消息信号
 	ret = semaphore_timeoutwait(&fs->recv_sem, timeout_usec);
 	e_assert(ret, E_ERROR_TIME_OUT);
@@ -316,7 +328,8 @@ static e_uint32 wait_for_reply_forever(fsocket_t *fs)
 {
 	e_int32 ret;
 
-	DMSG((STDOUT, "[%s_%u]FACK SOCKET wait for reply ...\r\n", fs->name, fs->id));
+	DMSG(
+			(STDOUT, "[%s_%u]FACK SOCKET wait for reply ...\r\n", fs->name, fs->id));
 	//等待消息信号
 	ret = semaphore_wait(&fs->recv_sem);
 	e_assert(ret, E_ERROR);

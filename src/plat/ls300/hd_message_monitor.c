@@ -168,6 +168,7 @@ static e_int32 get_one_msg(msg_monitor_t *mm, e_uint8* buf, int buf_len,
 			}
 		}
 	}
+	return E_ERROR;
 }
 
 e_int32 mm_start(msg_monitor_t *mm)
@@ -233,5 +234,6 @@ e_int32 mm_loop(void *data)
 		//继续等待消息
 	}
 	mm_clean(monitor);
+	return E_OK;
 }
 

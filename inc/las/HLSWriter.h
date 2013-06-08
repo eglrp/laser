@@ -23,10 +23,7 @@
 #include "hlsDefinition.h"
 
 #include <stdio.h>
-//
-//#include <istream>
-//#include <fstream>
-//#include <string>
+
 using namespace std;
 
 class ByteStreamOut;
