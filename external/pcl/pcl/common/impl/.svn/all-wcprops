@@ -1,0 +1,107 @@
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl
+END
+spring.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/spring.hpp
+END
+pca.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/pca.hpp
+END
+transformation_from_correspondences.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/transformation_from_correspondences.hpp
+END
+file_io.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/file_io.hpp
+END
+io.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/io.hpp
+END
+centroid.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/centroid.hpp
+END
+bivariate_polynomial.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/bivariate_polynomial.hpp
+END
+angles.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/angles.hpp
+END
+gaussian.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/gaussian.hpp
+END
+piecewise_linear_function.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/piecewise_linear_function.hpp
+END
+polynomial_calculations.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/polynomial_calculations.hpp
+END
+intensity.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/intensity.hpp
+END
+eigen.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/eigen.hpp
+END
+common.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/common.hpp
+END
+vector_average.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 83
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/vector_average.hpp
+END
+transforms.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/transforms.hpp
+END
+norms.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/common/impl/norms.hpp
+END

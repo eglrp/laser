@@ -31,7 +31,7 @@ typedef struct laser_control_t {
 	e_uint32 end_steps; //终止角度步数
 	e_uint32 real_steps; //实际整个范围走过的步数
 	e_uint16 step_delay; //每一步的延迟时间
-	e_uint32 current_angle; //当前转台角度
+	e_float32 current_angle; //当前转台角度
 //	e_float32 progress; //转台目前走过的进度
 
 //public
@@ -60,17 +60,17 @@ extern "C" {
 #endif
 
 //初始化
-e_int32 DEV_EXPORT hl_open(laser_control_t *lc, e_uint8 *com_name,
+e_int32 DEV_EXPORT hl_open(laser_control_t *lc, char *com_name,
 		e_uint32 baudrate);
 
-e_int32 DEV_EXPORT hl_open_socket(laser_control_t *lc,e_uint8 *ip,
+e_int32 DEV_EXPORT hl_open_socket(laser_control_t *lc, e_uint8 *ip,
 		e_uint32 port);
 
 //关闭串口
 e_int32 DEV_EXPORT hl_close(laser_control_t *lc);
 
 //准备工作
-e_int32 DEV_EXPORT hl_turntable_prepare(laser_control_t *lc);
+e_int32 DEV_EXPORT hl_turntable_prepare(laser_control_t *lc, e_uint32 pre_start_angle);
 //开始工作
 e_int32 DEV_EXPORT hl_turntable_start(laser_control_t *lc);
 

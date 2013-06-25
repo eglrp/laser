@@ -158,7 +158,6 @@ public:
 
   LASattribute(U8 size)
   {
-	//TODO:不处理
     if (size == 0) throw;
     memset(this, 0, sizeof(LASattribute));
     scale[0] = scale[1] = scale[2] = 1.0;

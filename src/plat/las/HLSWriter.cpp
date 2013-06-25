@@ -81,12 +81,12 @@ BOOL HLSWriter::create( const char* file_name, const HLSheader* header,BOOL bUpd
 
 	for (tag = fileTst;*tag;tag++)
 	{
-		char* escStr = "\\";
+		const char escStr[] = "\\";
 		if (strcmp(tag,escStr) == 0)
 		{
 			char buffer[1000],path[1000];
 			strcpy(buffer,fileTst);
-			buffer[strlen(fileTst) - strlen(tag) + 1] = NULL;
+			buffer[strlen(fileTst) - strlen(tag) + 1] = 0;
 			strcpy(path,buffer);
 			if (access(path,6) == -1)
 			{

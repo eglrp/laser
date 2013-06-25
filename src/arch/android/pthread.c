@@ -32,12 +32,11 @@
 #include <time.h>
 #include <limits.h>
 
-#if defined(ANDROID_OS) && !defined(LINUX)
+#if 0
 /* return difference in milliseconds */
 static long long diff(const struct timespec *start, const struct timespec *end);
 
-int pthread_mutex_timedlock(pthread_mutex_t *mutex,
-		const struct timespec *abstime)
+int pthread_mutex_timedlock(pthread_mutex_t *mutex, struct timespec *abstime)
 {
 	int rc = 0;
 	long long msecs = 0;

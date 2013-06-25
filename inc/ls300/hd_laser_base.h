@@ -18,13 +18,14 @@
 
 #define DEFAULT_COM_PORT "com1"
 #define DEFAULT_COM_BAUDRATE 38400
-#define DEFAULT_COM_TIMEOUT  (1000*1000) //1秒
+#define DEFAULT_COM_TIMEOUT  (1E6) //1秒
 
 //------------------------------------------------------------------------------
 //量纲转换
 //1度 = 100步,每转180度，误差为1.2度
-#define ANGLE_TO_STEP(_angle_) (_angle_*100)
-#define STEP_TO_ANGLE(_step_) (_step_/100)
+#define ANGLE_TO_STEP(_angle_) ((int)((_angle_)*100))
+#define STEP_TO_ANGLE(_step_) ((((float)(_step_))/100))
+#define PULSE_SPEED_TO_STEP_TIME(_speed_) ((_speed_)*2*40)   //in us
 //通过电压值获得倾角
 #define VOLTATE_TO_DIP(_value_) (asin((_value_ - 1024) / 1638) * 180 / M_PI)
 
@@ -42,18 +43,19 @@ static const e_uint8 START_WORK[] = { 0x23, 0x4d, 0x4f, 0x54, 0x4f, 0x2c,
 		0x46, 0x2c, 0x33, 0x36, 0x30, 0x30, 0x30, 0x2c, 0x30, 0x30, 0x32, 0x30,
 		0x40, 0x0 };
 
-#define TIMEOUT_TURNTABLE (1000*1000*10)//转盘 10秒
-#define TIMEOUT_SEARCH_ZERO (1000*1000*30)//转盘到0点 30秒
-#define TIMEOUT_ANGLE 	(1000*1000)  	//倾角
-#define TIMEOUT_STEP 	(1000*1000)  	//水平角度
-#define TIMEOUT_TEMPERATURE (1000*1000)		//温度
-#define TIMEOUT_CAMERA (1000*1000*3)	//相机
-#define TIMEOUT_LED (1000*1000)			//指示灯
-#define TIMEOUT_INFO (1000*1000)		//取控制板信息,Battery
+#define TIMEOUT_TURNTABLE (1E6*10)//转盘 10秒
+#define TIMEOUT_SEARCH_ZERO (1E6*30)//转盘到0点 30秒
+#define TIMEOUT_ANGLE 	(1E6)  	//倾角
+#define TIMEOUT_STEP 	(1E6)  	//水平角度
+#define TIMEOUT_TEMPERATURE (1E6)		//温度
+#define TIMEOUT_CAMERA (1E6*3)	//相机
+#define TIMEOUT_LED (1E6)			//指示灯
+#define TIMEOUT_INFO (1E6)		//取控制板信息,Battery
 //-----------------------------------------------------------------------------
 
 //开始工作回应码
-#define MOTO_MSG "MOTO,F,%05d,%04d"
+#define MOTO_MSG_F "MOTO,F,%05d,%04d"
+#define MOTO_MSG_R "MOTO,R,%05d,%04d"
 static const e_uint8 MOTO_SUCCESS[] = { 'M', 'O', 'T', 'O', 'O', 'K', '!', 0 }; //success
 //不使用 static const e_uint8 MOTO_ERROR[] = { 'M', 'O', 'T', 'O', 'N', 'O', '!', 0 }; //error
 
@@ -72,8 +74,8 @@ static const e_uint8 PHOTO_SUCCESS[] = { 'T', 'A', 'P', 'H', 'O', 'K', '!', 0 };
 //不使用 static const e_uint8 PHOTO_ERROR[] = { 'T', 'A', 'P', 'H', 'N', 'O', '!', 0 };
 
 //LED指示灯
-static const e_uint8 SET_LEDRED[] = { 'L', 'E', 'D', 'G', 0 };
-static const e_uint8 SET_LEDGREEN[] = { 'L', 'E', 'D', 'R', 0 };
+static const e_uint8 SET_LEDRED[] = { 'L', 'E', 'D', 'R', 0 };
+static const e_uint8 SET_LEDGREEN[] = { 'L', 'E', 'D', 'G', 0 };
 static const e_uint8 SET_LEDOFF[] = { 'L', 'E', 'D', 'X', 0 };
 //static const e_uint8 LED_SUCCESS[] = {'L,'E','D','R','O','K',0}; #!@
 static const e_uint8 LED_ERROR[] = { 'l', 'E', 'D', 'N', 'O', '!', 0 };
@@ -104,7 +106,7 @@ static const e_uint8 GET_INFO[][7] = {
 //返回当前水平转台走了多少步
 static const e_uint8 GET_STEP[] = { 'R', 'E', 'S', 'T', 0 };
 static const e_uint8 STEP_ERROR[] = { 'R', 'E', 'S', 'T', 'N', 'O', '!', 0 };
-#define MSG_RET_STEP "%05f!"
+#define MSG_RET_STEP "%05d!"
 
 //
 //// 停止水平转台

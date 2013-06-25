@@ -184,8 +184,8 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 			//DMSG(( STDOUT,"Socket_Select FD=%d timeout=%dus",sockfd, timeout_usec));
 			if (timeout_usec > 0)
 			{
-				timeout.tv_sec = (long) (timeout_usec / 1000000);
-				timeout.tv_usec = (long) (timeout_usec % 1000000);
+				timeout.tv_sec = (long) (timeout_usec / (1000*1000));
+				timeout.tv_usec = (long) (timeout_usec % (1000*1000));
 				ret = select(sockfd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
 						&timeout);
 			}
@@ -199,8 +199,8 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 		case E_WRITE:
 			if (timeout_usec > 0)
 			{
-				timeout.tv_sec = (long) (timeout_usec / 1000000);
-				timeout.tv_usec = (long) (timeout_usec % 1000000);
+				timeout.tv_sec = (long) (timeout_usec / (1000*1000));
+				timeout.tv_usec = (long) (timeout_usec % (1000*1000));
 				ret = select(sockfd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
 						&timeout);
 			}
@@ -296,10 +296,38 @@ e_int32 Socket_Connect(socket_t *socket)
 	ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
 	e_assert(ret, E_ERROR_INVALID_ADDRESS);
 	peer_address.sin_port = htons(socket->port);
+//	ret = connect(sockfd, (struct sockaddr *) &peer_address,
+//			sizeof(struct sockaddr));
+	unsigned long ul = 1;
+	ioctl(sockfd, FIONBIO, &ul); //设置为非阻塞模式
 	ret = connect(sockfd, (struct sockaddr *) &peer_address,
 			sizeof(struct sockaddr));
-	e_assert((ret != SOCKET_ERROR), E_ERROR_IO);
-	return E_OK;
+	if (ret == -1)
+	{
+		fd_set set;
+		int len=sizeof(int);
+		struct timeval tm;
+		tm.tv_sec = 1;
+		tm.tv_usec = 0;
+		FD_ZERO(&set);
+		FD_SET(sockfd, &set);
+		if (select(sockfd + 1, NULL, &set, NULL, &tm) > 0)
+		{
+			getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &ret, (socklen_t *) &len);
+			if (ret == 0)
+				ret = E_OK;
+			else
+				ret = E_ERROR_IO;
+		}
+		else
+			ret = E_ERROR_IO;
+	}
+	else
+		ret = E_OK;
+
+	ul = 0;
+	ioctl(sockfd, FIONBIO, &ul); //设置为阻塞模式
+	return ret;
 }
 
 /*

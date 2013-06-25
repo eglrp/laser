@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include <laslib/inc/mydefs.hpp>
+#include <las/mydefs.hpp>
 //定义点记录格式,地面扫描仪点格式
 #define HLS_POINTFORMAT_XYZI  0x0		// xyzi记录
 #define HLS_POINTFORMAT_RHVI  0x1		// 距离角度记录

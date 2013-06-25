@@ -15,6 +15,7 @@
 #include <ls300/hd_connect.h>
 #include <ls300/hd_laser_base.h>
 #include <sickld/sickld_base.h>
+#include <arch/hd_timer_api.h>
 
 enum {
 	E_CONNECT_SOCKET = 1, E_CONNECT_COM = 2,
@@ -22,7 +23,13 @@ enum {
 
 static char tostring[1024];
 
-//----------------------------------------------------------------------------
+/**
+ *\brief 创建套接字连接，并设置套接字相应得属性。
+ *\param sc 定义了海达连接的对象指针。
+ *\param sick_ip_address 定义了套接字的ip地址。
+ *\param sick_tcp_port 定义了套接字的端口号。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address,e_uint16 sick_tcp_port) {
 	int ret;
 	e_assert(sc, E_ERROR_INVALID_HANDLER);
@@ -42,6 +49,13 @@ e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address,e_uint16 sick_tcp
 	return E_OK;
 }
 
+/**
+ *\brief 创建串口连接，并设置串口的相应属性。
+ *\param sc 定义了海达连接的对象指针。
+ *\param com_name 定义了串口号。
+ *\param baudrate 定义了串口传输得波特率。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_open_serial(hd_connect_t* sc, char* com_name, e_uint32 baudrate) {
 	int ret;
 	e_assert(sc, E_ERROR_INVALID_HANDLER);
@@ -63,6 +77,11 @@ e_int32 sc_open_serial(hd_connect_t* sc, char* com_name, e_uint32 baudrate) {
 	return E_OK;
 }
 
+/**
+ *\brief 关闭相应的串口连接或者网络连接。
+ *\param sc 定义了海达连接的对象指针。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_close(hd_connect_t* sc) {
 	e_assert(sc&&sc->state, E_ERROR);
 
@@ -82,6 +101,11 @@ e_int32 sc_close(hd_connect_t* sc) {
 	return E_OK;
 }
 
+/**
+ *\brief  测试海达连接对象的状态。
+ *\param sc 定义了海达连接的对象指针。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_state(hd_connect_t *sc) {
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
 	return E_OK;
@@ -89,6 +113,13 @@ e_int32 sc_state(hd_connect_t *sc) {
 
 //异步通讯
 /*timeout,单位usec, 1秒 = 1000000微秒*/
+/**
+ *\brief 选择连接方式，网络连接或者串口连接。
+ *\param sc 定义了海达连接的对象指针。
+ *\param type 定义了该连接得类型。 
+ *\param timeout_usec 定义了连接超时时间。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_select(hd_connect_t *sc, e_int32 type, e_int32 timeout_usec) {
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
 
@@ -102,6 +133,11 @@ e_int32 sc_select(hd_connect_t *sc, e_int32 type, e_int32 timeout_usec) {
 	}
 }
 
+/**
+ *\brief 建立连接，网络连接或者串口连接。
+ *\param sc 定义了海达连接的对象指针。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_connect(hd_connect_t *sc) {
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
 
@@ -117,6 +153,13 @@ e_int32 sc_connect(hd_connect_t *sc) {
 	}
 }
 
+/**
+ *\brief 连接对象的接收函数。
+ *\param sc 定义了海达连接的对象指针。
+ *\param buffer 定义了接收缓存的大小。
+ *\param blen 定义了接收数据的长度。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_recv(hd_connect_t *sc, e_uint8 *buffer, e_uint32 blen) {
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
 
@@ -130,6 +173,14 @@ e_int32 sc_recv(hd_connect_t *sc, e_uint8 *buffer, e_uint32 blen) {
 	}
 }
 
+/**
+ *\brief
+ *\brief 连接对象的发送函数。
+ *\param sc 定义了海达连接的对象指针。
+ *\param buffer 定义了发送缓存的大小。
+ *\param blen 定义了发送数据的长度。
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_send(hd_connect_t *sc, e_uint8 *buffer, e_uint32 blen) {
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
 	switch (sc->mask) {
@@ -147,6 +198,16 @@ static e_uint32 compute_elapsed_time(const e_uint32 beg_time, e_uint32 end_time)
 	return (end_time - beg_time);
 }
 
+/**
+ *\brief 发送请求接收相应函数。
+ *\param sc 定义了海达连接的对象指针。
+ *\param send_buffer 定义了发送缓存的大小。
+ *\param slen 定义了发送数据的长度。
+ *\param recv_buffer 定义了接收缓存的大小。
+ *\param rlen 定义了接收数据的长度。
+ *\param timeout_usec 定义了超时时间。 
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_request(hd_connect_t *sc, e_uint8 *send_buffer, e_uint32 slen,
 		e_uint8 *recv_buffer, e_uint32 rlen, e_uint32 timeout_usec) {
 	e_int32 ret;
@@ -182,6 +243,17 @@ e_int32 sc_request(hd_connect_t *sc, e_uint8 *send_buffer, e_uint32 slen,
 	return E_OK;
 }
 
+/**
+ *\brief 发送请求接收相应函数。
+ *\param sc 定义了海达连接的对象指针。
+ *\param send_buffer 定义了发送缓存的大小。
+ *\param slen 定义了发送数据的长度。
+ *\param recv_buffer 定义了接收缓存的大小。
+ *\param rlen 定义了接收数据的长度。
+ *\param check_string 定义了被检查字符串的缓存。 
+ *\param timeout_usec 定义了超时时间。 
+ *\retval E_OK 表示成功。
+ */
 e_int32 sc_request_and_check(hd_connect_t *sc, e_uint8 *send_buffer,
 		e_uint32 slen, e_uint8 *recv_buffer, e_uint32 rlen,
 		e_uint8 * check_string, e_uint32 timeout_usec) {
@@ -221,17 +293,22 @@ e_int32 sc_request_and_check(hd_connect_t *sc, e_uint8 *send_buffer,
 	return E_OK;
 }
 
+/**
+ *\brief 字符串转换函数。
+ *\param sc 定义了海达连接的对象指针。
+ *\retval E_OK 表示成功。
+ */
 char*
 sc_tostring(hd_connect_t *sc) {
 	e_assert(sc&&sc->state, E_ERROR);
 	switch (sc->mask) {
 	case E_CONNECT_SOCKET:
 		sprintf(tostring, "Sokcet Connect:%s:%u", sc->socket->ip_address,
-				sc->socket->port);
+		        (unsigned int)sc->socket->port);
 		break;
 	case E_CONNECT_COM:
 		sprintf(tostring, "Serial Connect:%s speed:%u Hz", sc->serial.name,
-				sc->serial.speed);
+		        (unsigned int)sc->serial.speed);
 		break;
 	default:
 		return NULL;

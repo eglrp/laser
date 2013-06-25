@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/ros
+END
+conversions.h
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/ros/conversions.h
+END
+register_point_struct.h
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/common/include/pcl/ros/register_point_struct.h
+END

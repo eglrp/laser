@@ -151,7 +151,7 @@ void killthread(ethread_t *thread) {
 	/* 3 clean up itc data witch belongs to the thread */
 	/* 4 free memory and thread node */
 
-	if (!threadstate(thread) || thread == 0x0) {
+	if (thread == 0x0) {
 		DMSG((STDOUT, "killing ethread\n"));
 		return;
 	}
@@ -395,8 +395,8 @@ e_int32 semaphore_timeoutwait(semaphore_t *semaphore, e_uint32 timeout_usec) {
 		return 0;
 	}
 	gettimeofday(&now, NULL);
-	outtime.tv_sec = now.tv_sec + timeout_usec / (1000 * 1000);
-	outtime.tv_nsec = (now.tv_usec + timeout_usec % (1000 * 1000)) * 1000;
+	outtime.tv_sec = now.tv_sec + timeout_usec / ((1000*1000));
+	outtime.tv_nsec = (now.tv_usec + timeout_usec % ((1000*1000))) * 1000;
 
 	outtime.tv_sec += outtime.tv_nsec / (1000*1000*1000);
 	outtime.tv_nsec %= (1000*1000*1000);
@@ -482,8 +482,8 @@ mutex_timeoutlock(mutex_t *mutex, e_uint32 timeout_usec)
 		return 0;
 	}
 	gettimeofday(&now, NULL);
-	outtime.tv_sec = now.tv_sec + timeout_usec / (1000 * 1000);
-	outtime.tv_nsec = (now.tv_usec + timeout_usec % (1000 * 1000)) * 1000;
+	outtime.tv_sec = now.tv_sec + timeout_usec / ((1000*1000));
+	outtime.tv_nsec = (now.tv_usec + timeout_usec % ((1000*1000))) * 1000;
 
 	outtime.tv_sec += outtime.tv_nsec / (1000*1000*1000);
 	outtime.tv_nsec %= (1000*1000*1000);
@@ -588,11 +588,11 @@ int cond_tiemoutwait(condition_t *cond, mutex_t *mutex, e_uint32 timeout_usec) {
 		return 0;
 	}
 	gettimeofday(&now, NULL);
-	outtime.tv_sec = now.tv_sec + timeout_usec / (1000 * 1000);
-	outtime.tv_nsec = (now.tv_usec + timeout_usec % (1000 * 1000)) * 1000;
+	outtime.tv_sec = now.tv_sec + timeout_usec / ((1000*1000));
+	outtime.tv_nsec = (now.tv_usec + timeout_usec % ((1000*1000))) * 1000;
 
 	outtime.tv_sec += outtime.tv_nsec / (1000*1000*1000);
-	outtime.tv_nsec %= (1000 * 1000 * 1000);
+	outtime.tv_nsec %= (1000*1000*1000);
 
 	ret = pthread_cond_timedwait(cond->priv, mutex->priv, &outtime);
 	if (ret) //failed

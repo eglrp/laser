@@ -18,7 +18,7 @@
 #include "hd_fake_socket.h"
 
 #define MAX_CLIENT_SIZE 10
-#define MM_SLEEP_TIMEOUT (1000*1000)
+#define MM_SLEEP_TIMEOUT (1000) //(1000*1000)  1MS
 
 typedef struct msg_monitor_t {
 	hd_connect_t *connect;

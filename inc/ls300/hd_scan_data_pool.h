@@ -24,7 +24,7 @@
 /*结构体定义*/
 //返回给上层的数据格式
 typedef struct scan_data_t {
-	e_float64 h_angle; //水平转台当前角度
+	e_float32 h_angle; //水平转台当前角度,不需要双精度
 	e_uint32 num_values[SICK_MAX_NUM_SECTORS]; //对应的每个扇区的点个数，这里暂时扇区数固定为2
 	e_uint32 sector_ids[SICK_MAX_NUM_SECTORS];
 	e_uint32 data_offsets[SICK_MAX_NUM_SECTORS]; //对应的每个扇区的点偏移
@@ -57,6 +57,7 @@ extern "C" {
 
 void DEV_EXPORT pool_init(scan_pool_t* pool);
 void DEV_EXPORT pool_cancle(scan_pool_t* pool);
+void DEV_EXPORT pool_leave(scan_pool_t* pool);
 void DEV_EXPORT pool_destroy(scan_pool_t* pool);
 e_int32 DEV_EXPORT pool_read(scan_pool_t* pool, scan_data_t *data);
 e_int32 DEV_EXPORT pool_write(scan_pool_t* pool, scan_data_t *data);

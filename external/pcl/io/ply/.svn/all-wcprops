@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/ply
+END
+byte_order.h
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/ply/byte_order.h
+END
+ply_parser.h
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/ply/ply_parser.h
+END
+ply.h
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/ply/ply.h
+END
+io_operators.h
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/ply/io_operators.h
+END

@@ -154,8 +154,8 @@ void skm_dump(const sick_message_t *skm) {
 	e_uint32 i;
 	e_assert((skm&&skm->state));
 	DMSG((STDOUT, "Sick Message Dump:\r\n"));
-	DMSG((STDOUT, "Payload length:%u\r\n",skm->payload_length));
-	DMSG((STDOUT, "Message length:%u\r\n",skm->message_length));
+	DMSG((STDOUT, "Payload length:%u\r\n",(unsigned int)skm->payload_length));
+	DMSG((STDOUT, "Message length:%u\r\n",(unsigned int)skm->message_length));
 	DMSG((STDOUT, "Message (hex):"));
 	for (i = 0; i < skm->message_length; i++) {
 		DMSG((STDOUT,"%X ",(int)skm->message_buffer[i]));

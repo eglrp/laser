@@ -1,0 +1,83 @@
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera
+END
+openni_image.h
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_image.h
+END
+openni_image_rgb24.h
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_image_rgb24.h
+END
+openni_device_oni.h
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_device_oni.h
+END
+openni_image_bayer_grbg.h
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_image_bayer_grbg.h
+END
+openni_depth_image.h
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_depth_image.h
+END
+openni_device_primesense.h
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_device_primesense.h
+END
+openni_driver.h
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_driver.h
+END
+openni_device_kinect.h
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_device_kinect.h
+END
+openni_image_yuv_422.h
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_image_yuv_422.h
+END
+openni_ir_image.h
+K 25
+svn:wc:ra_dav:version-url
+V 83
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_ir_image.h
+END
+openni_exception.h
+K 25
+svn:wc:ra_dav:version-url
+V 84
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_exception.h
+END
+openni_device.h
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_device.h
+END
+openni_device_xtion.h
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/io/openni_camera/openni_device_xtion.h
+END

@@ -125,8 +125,8 @@ PostEvents(e_uint32 msg, e_uint32 wparam, e_uint32 lparam)
 
 	event_queue_push_event(&event);
 
-	DMSG((STDOUT,"posting event to queue, type:%d, name:%s", event.type,
-	      event_to_str(event.type)));
+	DMSG((STDOUT,"posting event to queue, type:%d, name:%s", (int)event.type,
+			event_to_str(event.type)));
 
 	return;
 }
@@ -165,7 +165,7 @@ QueuePump(void *queue, Event *event)
 		     (void*)&event_data,
 		     sizeof(event_data));
 
-	DMSG((STDOUT,"thread event pumped:%p, size:%d", event_data, rsize));
+	DMSG((STDOUT,"thread event pumped:%p, size:%d", event_data, (unsigned int)rsize));
 	if(rsize != sizeof(event_data))
 	{
 		return 0;
@@ -259,7 +259,7 @@ e_uint32 push_event_with_params(EventType type, ...)
 	case TIMER:
 	{
 		event.timer.timer_id = va_arg(arg, int);
-		DMSG((STDOUT,"TIMER id:%D", event.timer.timer_id));
+		DMSG((STDOUT,"TIMER id:%d", (unsigned int)event.timer.timer_id));
 		break;
 	}
 	case CHAR:

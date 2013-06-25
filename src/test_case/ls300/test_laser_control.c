@@ -14,16 +14,24 @@
 #if TEST_CONTROL
 #include <ls300/hd_laser_control.h>
 
-int main(){
+int main()
+{
 	int ret;
 	laser_control_t control;
 	DMSG((STDOUT,"LASER CONTROL TEST start.\r\n"));
-	ret = hl_open_socket(&control,"192.168.1.10",6666);
-	e_assert(ret>0,ret);
+#if 0
+	ret = hl_open_socket(&control,"192.168.1.10",49152);
+#else
+	ret = hl_open(&control, "/dev/ttyUSB0", 38400);
+#endif
+	e_assert(ret>0, ret);
 
 	DMSG((STDOUT,"LASER CONTROL TEST turn.\r\n"));
-	ret = hl_turntable_turn(&control,60);
-	e_assert(ret>0,ret);
+//	ret = hl_SearchZero(&control);
+//	e_assert(ret>0, ret);
+//	getchar();
+	ret = hl_turntable_turn(&control, 100);
+	e_assert(ret>0, ret);
 
 	DMSG((STDOUT,"LASER CONTROL TEST PASSED.\r\n"));
 	hl_close(&control);

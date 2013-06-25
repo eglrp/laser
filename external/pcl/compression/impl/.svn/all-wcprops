@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/compression/impl
+END
+octree_pointcloud_compression.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/compression/impl/octree_pointcloud_compression.hpp
+END
+entropy_range_coder.hpp
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/pcl/!svn/ver/6452/tags/pcl-1.6.0/io/include/pcl/compression/impl/entropy_range_coder.hpp
+END

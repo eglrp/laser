@@ -55,7 +55,6 @@ static void read_pool_data_routine(void* data)
 		{
 			break;
 		}
-		//TODO:写入文件
 		DMSG((STDOUT,"read_data_routine write data at angle: %f.\r\n",(float)sdata.h_angle));
 	}
 	DMSG((STDOUT,"scan job:write_data_routine done.\r\n"));

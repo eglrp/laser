@@ -69,11 +69,10 @@ e_int32 Serial_Open(serial_t *port, char *name)
 		return E_ERROR;
 	}
 
-	/* get current options */
-	tcgetattr(port->priv->port_handle, &(port->priv->options));
-
 	/* return handle to port */
 	port->priv->port_handle = fd;
+	/* get current options */
+	tcgetattr(port->priv->port_handle, &(port->priv->options));
 	strncpy(port->name, name, sizeof(port->name));
 	port->state = TRUE;
 
@@ -129,23 +128,26 @@ e_int32 Serial_Settings(serial_t *port, e_uint32 baud, char parity,
 		return E_ERROR_INVALID_PARAMETER;
 	}
 
-	/* set port speed */
-	cfsetispeed(&options, baud);
-	cfsetospeed(&options, baud);
+	/* set port speed ...baud修正为actual_baud*/
+	cfsetispeed(&options, actual_baud);
+	cfsetospeed(&options, actual_baud);
 
 	/* check and set parity */
 	switch (parity)
 	{
 	case 'n':
+	case 'N':
 		options.c_cflag &= ~PARENB;
 		break;
 
 	case 'o':
+	case 'O':
 		options.c_cflag |= PARENB;
 		options.c_cflag |= PARODD;
 		break;
 
 	case 'e':
+	case 'E':
 		options.c_cflag |= PARENB;
 		options.c_cflag &= ~PARODD;
 		break;
@@ -250,8 +252,8 @@ e_int32 Serial_Select(serial_t *port, e_int32 type, e_int32 timeout_usec)
 			//DMSG(( STDOUT,"Com_Select FD=%d timeout=%dus",fd, timeout_usec));
 			if (timeout_usec > 0)
 			{
-				timeout.tv_sec = (long) (timeout_usec / 1000000);
-				timeout.tv_usec = (long) (timeout_usec % 1000000);
+				timeout.tv_sec = (long) (timeout_usec / ((1000*1000)));
+				timeout.tv_usec = (long) (timeout_usec % ((1000*1000)));
 				ret = select(fd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
 						&timeout);
 			}
@@ -265,8 +267,8 @@ e_int32 Serial_Select(serial_t *port, e_int32 type, e_int32 timeout_usec)
 		case E_WRITE:
 			if (timeout_usec > 0)
 			{
-				timeout.tv_sec = (long) (timeout_usec / 1000000);
-				timeout.tv_usec = (long) (timeout_usec % 1000000);
+				timeout.tv_sec = (long) (timeout_usec / ((1000*1000)));
+				timeout.tv_usec = (long) (timeout_usec % ((1000*1000)));
 				ret = select(fd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
 						&timeout);
 			}
@@ -280,11 +282,12 @@ e_int32 Serial_Select(serial_t *port, e_int32 type, e_int32 timeout_usec)
 			return E_ERROR_INVALID_PARAMETER;
 		}
 
-		if (e_check(ret==0,"Socket select time out."))
+		//if (e_check(ret==0,"Serial select time out."))
+		if(ret == 0)
 		{
 			return E_ERROR_TIME_OUT;
 		}
-		if (e_check(ret==-1,"Socket select error."))
+		if (e_check(ret==-1,"Serial select error."))
 		{
 			return E_ERROR_IO;
 		}

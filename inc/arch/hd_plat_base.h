@@ -141,10 +141,23 @@ typedef struct{
 //----------------------------------------------------------------------------
 #define EFLOAT_MIN			1E-20
 #define EFLOAT_MAX			1E20
-#define ELONG_MAX			0x7FFFFFFF
-#define ELONG_MIN			0xFFFFFFFF
-#define ESHORT_MAX			0x00007FFF
-#define ESHORT_MIN			0x0000FFFF
+//#define ELONG_MAX			0x7FFFFFFF
+//#define ELONG_MIN			0xFFFFFFFF
+//#define ESHORT_MAX			0x00007FFF
+//#define ESHORT_MIN			0x0000FFFF
+
+#define ESHRT_MIN    (-32768)        /* minimum (signed) short value */
+#define ESHRT_MAX      32767         /* maximum (signed) short value */
+#define EUSHRT_MAX     0xffff        /* maximum unsigned short value */
+#define EINT_MIN     (-2147483647 - 1) /* minimum (signed) int value */
+#define EINT_MAX       2147483647    /* maximum (signed) int value */
+#define EUINT_MAX      0xffffffff    /* maximum unsigned int value */
+#define ELONG_MIN    (-2147483647L - 1) /* minimum (signed) long value */
+#define ELONG_MAX      2147483647L   /* maximum (signed) long value */
+#define EULONG_MAX     0xffffffffUL  /* maximum unsigned long value */
+#define ELLONG_MAX     9223372036854775807i64       /* maximum signed long long int value */
+#define ELLONG_MIN   (-9223372036854775807i64 - 1)  /* minimum signed long long int value */
+#define EULLONG_MAX    0xffffffffffffffffui64       /* maximum unsigned long long int value */
 
 //---------------------------------------------------------------------------
 #define		ENT_MAX_PNT_NUM		9600
