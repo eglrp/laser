@@ -12,6 +12,7 @@
  */
 
 #include <comm/hd_utils.h>
+#include <math.h>
 
 /**
  * \brief Compute the checksum (single-byte XOR).
@@ -28,4 +29,13 @@ e_uint8 hd_compute_xor(const e_uint8 * const data, const e_uint32 length) {
 
 	/* done */
 	return checksum;
+}
+
+void hd_polar2xyz(float *x, float *y, float *z, double distance, float angle_h,
+		float angle_v) {
+	angle_v = (angle_v-90.0) * M_PI/180.0;
+	angle_h = angle_h * M_PI/180.0;
+	(*x) = distance * cos(angle_v) * cos(angle_h);
+	(*y) = distance * cos(angle_v) * sin(angle_h);
+	(*z) = distance * sin(angle_v);
 }

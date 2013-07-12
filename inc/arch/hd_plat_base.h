@@ -231,6 +231,7 @@ enum {
 	E_NONBLOCK =4,
 	E_READ =5,
 	E_WRITE =6,
+	E_DWRITE =7,
 };
 
 

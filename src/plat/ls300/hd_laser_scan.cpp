@@ -15,7 +15,14 @@
 #include <ls300/hd_scan_data_pool.h>
 #include <ls300/hd_laser_control.h>
 #include <sickld/sickld.h>
-#include <las/HLSWriter.h>
+#include <ls300/hd_data_adapter.h>
+
+extern "C" {
+#include <jpeg/jpeglib.h>
+}
+
+#include <arch/hd_timer_api.h>
+#include <comm/hd_utils.h>
 
 struct scan_job_t {
 	sickld_t *sick;
@@ -42,28 +49,19 @@ struct scan_job_t {
 	} active_sectors;
 
 	//文件读写
-	char data_dir[MAX_PATH_LEN];
-	hd::HLSWriter hlsWrite;
+	char data_file[MAX_PATH_LEN];
+	data_adapter_t writer;
 	char gray_dir[MAX_PATH_LEN];
+	point_t *points;
 
-	//缓冲区
-	hd::HLSPointStru *points;
 	e_uint8 *gray;
 
 	//临时记录
 	e_uint32 slip_idx;
-	e_float32 back_angle;
 	e_float32 pre_scan_angle;
 
 	volatile e_int32 state;
 };
-
-extern "C" {
-#include <jpeg/jpeglib.h>
-}
-
-#include <arch/hd_timer_api.h>
-#include <comm/hd_utils.h>
 
 #define PRE_SCAN_WAIT_TIME  0 //us
 #define JPEG_QUALITY 100     //它的大小决定jpg的质量好坏
@@ -75,7 +73,7 @@ enum {
 	STATE_DONE = 4
 };
 static e_int32 sj_clean(scan_job sj);
-static e_int32 sj_create_hlswriter(scan_job sj);
+static e_int32 sj_create_writer(scan_job sj);
 static void scan_done(scan_job sj);
 int sj_save2image(char *filename, unsigned char *bits, int width, int height,
 		int depth);
@@ -125,7 +123,7 @@ static void write_pool_data_routine(void* data) {
 			continue;
 		}
 
-		DMSG((STDOUT,"WRITE TO FILE: %f end: %f\n",sdata.h_angle,sj->end_angle_h));
+		DMSG((STDOUT,"\rWRITE TO FILE: %f end: %f\n",sdata.h_angle,sj->end_angle_h));
 
 		//等待缓冲区空位
 		while (pool_write(&sj->pool, &sdata) <= 0) {
@@ -152,7 +150,7 @@ static void read_pool_data_routine(void* data) {
 			Delay(10);
 			continue;
 		}
-		DMSG((STDOUT,"read_data_routine read data at angle: %f.\r\n", sdata.h_angle));
+//		DMSG((STDOUT,"read_data_routine read data at angle: %f.\r\n", sdata.h_angle));
 		sj_filter_data(sj, &sdata);
 	}
 	for (;;) {
@@ -165,10 +163,10 @@ static void read_pool_data_routine(void* data) {
 		sj_filter_data(sj, &sdata);
 	}
 
-	if (e_check(sj->slip_idx != sj->width, "#ERROR# 行数与要求的不一致!\n")) {
+	if (e_check(sj->slip_idx*(sj->active_sectors.left+sj->active_sectors.right) != sj->width, "#ERROR# 列数与要求的不一致!\n")) {
 		DMSG((STDOUT, "sj->slip_idx = %u, sj->width = %u \n",
 				(unsigned int)sj->slip_idx,(unsigned int)sj->width));
-		sj->width = sj->slip_idx;//TODO:修复这里,不允许简单丢掉！!
+		sj->width = sj->slip_idx * (sj->active_sectors.left+sj->active_sectors.right); //TODO:修复这里,不允许简单丢掉！!
 	}
 
 	scan_done(sj);
@@ -220,10 +218,9 @@ e_int32 sj_destroy(scan_job sj) {
 static void pre_start(scan_job sj) {
 	e_uint32 gray_size;
 //创建数据文件
-	sj_create_hlswriter(sj);
+	sj_create_writer(sj);
 //创建缓冲区
-	sj->points = (hd::HLSPointStru*) malloc(
-											sj->height * sizeof(hd::HLSPointStru));
+	sj->points = malloc_points(PNT_TYPE_POLAR, sj->height);
 //创建色彩缓冲
 	gray_size = sj->width * sj->height;
 	sj->gray = (e_uint8*) malloc(gray_size);
@@ -233,12 +230,11 @@ static void pre_start(scan_job sj) {
 
 static void scan_done(scan_job sj) {
 	if (sj->state == STATE_STOP) {
-		sj->hlsWrite.close(sj->height * sj->slip_idx + 1, sj->height,
-							sj->slip_idx); //写入行列号
+		da_close(&sj->writer); //写入文件
 		//sj_save2image(sj->gray_dir, sj->gray, sj->height, sj->width, 1); //存储灰度图
 		sj_save2image_rotation(sj->gray_dir, sj->gray, sj->height, sj->width);
 		if (sj->points) {
-			free(sj->points);
+			free_points(sj->points);
 			sj->points = NULL;
 		}
 		if (sj->gray) {
@@ -435,8 +431,8 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
 	} //会用到0,1号
 	else if (sj->start_angle_h < 180 && sj->end_angle_h > 180) //左右皆有
 			{
-		sj->back_angle = sj->start_angle_h - 180;
-		sj->active_sectors.left = 0;
+		sj->end_angle_h = sj->start_angle_h + 180.0;
+		sj->active_sectors.left = 1;
 		sj->active_sectors.right = 1;
 	} //只用到2号
 	else if (sj->start_angle_h >= 180 && sj->end_angle_h > 180) //都在右边
@@ -481,65 +477,27 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
  *\param grayDir 定义了灰度图存储目录。
  *\retval E_OK 表示成功。
  */
-e_int32 sj_set_data_dir(scan_job sj, char* ptDir, char *grayDir) {
+e_int32 sj_set_data_file(scan_job sj, char* ptDir, char *grayDir) {
 	e_assert(sj&&sj->state, E_ERROR_INVALID_HANDLER);
-	strncpy(sj->data_dir, ptDir, sizeof(sj->data_dir));
+	strncpy(sj->data_file, ptDir, sizeof(sj->data_file));
 	strncpy(sj->gray_dir, grayDir, sizeof(sj->gray_dir));
 	return E_OK;
 }
 
-static void create_guid(int *num1, short *num2, short *num3, long long* num4) {
-	srand(GetTickCount());
-	(*num1) = rand();
-	(*num2) = rand() & 0xFFFF;
-	(*num3) = rand() & 0xFFFF;
-	(*num4) = (((long long) rand()) & 0xFFFF) << 16 | (rand() & 0xFFFF);
-}
-
-static e_int32 sj_create_hlswriter(scan_job sj) {
-	hd::HLSheader hlsHeader;
-	strcpy(hlsHeader.file_signature, "HLSF");
-	int num1 = 0;
-	short num2 = 0;
-	short num3 = 0;
-	long long num4 = 0;
-	create_guid(&num1, &num2, &num3, &num4);
-	hlsHeader.project_ID_GUID_data_1 = num1;
-	hlsHeader.project_ID_GUID_data_2 = num2;
-	hlsHeader.project_ID_GUID_data_3 = num3;
-	memcpy(hlsHeader.project_ID_GUID_data_4, &num4, sizeof(num4));
-
-	hlsHeader.file_source_id = 0;
-	hlsHeader.version_major = 1;
-	hlsHeader.version_minor = 0;
-	strcpy(hlsHeader.system_identifier, "HD 3LS 001");
-	strcpy(hlsHeader.generating_software, "HD-3LS-SCAN");
-	//在文件头中写入倾角信息
-	hlsHeader.yaw = 0.0f; //扫描仪航向
-	hlsHeader.pitch = 0.0f; //dY;//扫描仪前后翻滚角
-	hlsHeader.roll = 0.0f; //dX;//扫描仪左右翻滚角
-
+static e_int32 sj_create_writer(scan_job sj) {
+	e_int32 ret;
 	system_time_t sys_time;
 	GetLocalTime(&sys_time);
-	hlsHeader.file_creation_day = sys_time.day;
-	hlsHeader.file_creation_year = sys_time.year;
-	sprintf(sj->data_dir, "%d-%d-%d-%d-%d-%d.hls", sys_time.year,
+	sprintf(sj->data_file, "%d-%d-%d-%d-%d-%d.pcd", sys_time.year,
 			sys_time.month, sys_time.day, sys_time.hour, sys_time.minute,
 			sys_time.second);
 	sprintf(sj->gray_dir, "%d-%d-%d-%d-%d-%d.jpg", sys_time.year,
 			sys_time.month, sys_time.day, sys_time.hour, sys_time.minute,
 			sys_time.second);
-	if (!sj->hlsWrite.create(sj->data_dir, &hlsHeader)) {
-		return E_ERROR_IO;
-	}
+	ret = da_open(&sj->writer, (e_uint8*) sj->data_file, sj->width, sj->height,
+					sj->active_sectors.right ? E_DWRITE : E_WRITE);
+	e_assert(ret>0, ret);
 	return E_OK;
-}
-
-static void polar2xyz(int *x, int *y, int *z, double distance, float angle_h,
-		float angle_v) {
-	(*x) = distance * cos(angle_v) * cos(angle_h);
-	(*y) = distance * cos(angle_v) * sin(angle_h);
-	(*z) = distance * sin(angle_v);
 }
 
 static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
@@ -547,7 +505,7 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 //	unsigned int pnt_idx = 0;
 	unsigned int gray_idx = sj->slip_idx;
 	e_uint8* pgray;
-	hd::HLSPointStru *ppoint;
+	point_polar_t *ppoint;
 
 	if (sj->slip_idx >= sj->width) {
 		DMSG((STDOUT,"sj->slip_idx > sj->width,忽略多余数据\n"));
@@ -558,8 +516,8 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 		gray_idx += sj->width / 2; //有左区,写右区时要跳过左区
 	}
 
-//	memset(sj->points, 0, sizeof(hd::HLSPointStru) * sj->height); //清空缓存
-	ppoint = sj->points;
+	ppoint = (point_polar_t*) &sj->points->mem;
+
 	pgray = &sj->gray[gray_idx * sj->height];
 
 //	if (data_num > sj->height) //点数个数多一个?不可能
@@ -578,11 +536,10 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 	if (!type)
 	{
 		for (int k = data_num - 1; k >= 0; --k) {
-			ppoint->x = pdata->range_values[data_idx + k];
-			ppoint->y = pdata->h_angle;
-			ppoint->z = pdata->scan_angles[data_idx + k] - 0.5 * k / (data_num - 1);
+			ppoint->distance = pdata->range_values[data_idx + k];
+			ppoint->angle_h = pdata->h_angle;
+			ppoint->angle_v = pdata->scan_angles[data_idx + k] - 0.5 * k / (data_num - 1);
 			ppoint->intensity = 0;
-			ppoint->point_source_ID = 0;
 
 			if (pdata->echo_values[data_idx + k] >= 70
 					&& pdata->echo_values[data_idx + k] <= 700) //反射强度过滤
@@ -604,11 +561,11 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 	else
 	{
 		for (unsigned int k = 0; k < data_num; ++k) {
-			ppoint->x = pdata->range_values[data_idx + k];
-			ppoint->y = pdata->h_angle;
-			ppoint->z = pdata->scan_angles[data_idx + k] - 0.5 * k / (data_num - 1);
+			ppoint->distance = pdata->range_values[data_idx + k];
+			ppoint->angle_h = pdata->h_angle;
+			ppoint->angle_v = pdata->scan_angles[data_idx + k]
+					- 0.5 * (data_num - 1 - k) / (data_num - 1);
 			ppoint->intensity = 0;
-			ppoint->point_source_ID = 0;
 
 			if (pdata->echo_values[data_idx + k] >= 70
 					&& pdata->echo_values[data_idx + k] <= 700) //反射强度过滤
@@ -634,7 +591,7 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 //	}
 //if (!bPreScan)
 	{
-		sj->hlsWrite.write_point(sj->points, (unsigned int) sj->height, type);
+		da_append_points(&sj->writer, sj->points, sj->height, type);
 	}
 
 	return E_OK;

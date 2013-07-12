@@ -197,7 +197,7 @@ e_int32 DEV_EXPORT
 mutex_init( mutex_t *mutex );
 
 void DEV_EXPORT
-mutex_destory( mutex_t *mutex );
+mutex_destroy( mutex_t *mutex );
 
 e_int32 DEV_EXPORT
 mutex_state( mutex_t *mutex );

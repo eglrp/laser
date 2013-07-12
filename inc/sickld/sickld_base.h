@@ -30,7 +30,8 @@
 #define DEFAULT_SICK_SIGNAL_SET         (0)  ///< Default Sick signal configuration
 /*消息相关定义*/
 #define SICK_LD_MSG_HEADER_LEN             (8)  ///< Sick LD message header length in bytes
-#define SICK_LD_MSG_PAYLOAD_MAX_LEN     (5816)  ///< Sick LD maximum payload length
+//#define SICK_LD_MSG_PAYLOAD_MAX_LEN     (5816)  ///< Sick LD maximum payload length
+#define SICK_LD_MSG_PAYLOAD_MAX_LEN     (14400)  ///< Sick LD maximum payload length
 #define SICK_LD_MSG_TRAILER_LEN            (1)  ///< Sick LD length of the message trailer
 /**
  * \def SWAP_VALUES(x,y,t)
@@ -173,7 +174,7 @@ static const e_float64 SICK_DEGREES_PER_MOTOR_STEP = 0.0625; ///< Each odometer 
  */
 
 /* Sick LD profile formats */
-#define	SICK_SCAN_PROFILE_RANGE_AND_ECHO	((e_uint16)0x3DFF)                    ///< Request sector scan data w/ echo data
+#define	SICK_SCAN_PROFILE_RANGE_AND_ECHO	((e_uint16)0x3FFF)  //((e_uint16)0x3DFF)                    ///< Request sector scan data w/ echo data
 /*
  * SICK_SCAN_PROFILE_RANGE format (0x3DFF) interpretation:
  * (See page 32 of telegram listing for fieldname definitions)

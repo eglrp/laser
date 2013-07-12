@@ -39,8 +39,8 @@ int main()
 
 	//ret = sj_config(job, 50, 180, 360, 5, 0.5, -45, 0);
 	//ret = sj_config(job, 50, 0, 360, 5, 0.5, 0, 90);//???频繁出现取数据错误?sick 3030
-	//ret = sj_config(job, 50, 0, 360, 5, 0.5, 0, 85);
-	ret = sj_config(job, 50, 0, 90, 5, 0.5, -45, -20);
+	ret = sj_config(job, 100, 0, 359, 5, 0.25, -45, 89);
+	//ret = sj_config(job, 50, 0, 90, 5, 0.5, -45, -20);
 	//ret = sj_config(job, 50, 160, 200, 5, 0.5, -45, 90);
 	e_assert(ret>0, ret);
 

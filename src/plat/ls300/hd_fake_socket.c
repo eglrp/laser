@@ -233,7 +233,7 @@ e_int32 fsocket_request(fsocket_t *fs, e_uint8 *msg, e_uint32 mlen,
 	if (e_failed(ret))
 		goto END;
 
-//等待回复
+	//等待回复
 	elapsed_time = GetTickCount() - beg_time;
 
 	while (timeout_usec <= 0

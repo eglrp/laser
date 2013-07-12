@@ -8,15 +8,14 @@
 
 #include <arch/hd_serial_api.h>
 
-
 static char serials[30][16] =
-{ "/dev/ttyS0", "/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4",
-		"/dev/ttyS5", "/dev/ttyS6", "/dev/ttyS7", "/dev/ttyS8", "/dev/ttyS9",
-		"/dev/ttyS10", "/dev/ttyS11", "/dev/ttyS12", "/dev/ttyS13",
-		"/dev/ttyS14", "/dev/ttyS15", "/dev/ttyUSB0", "/dev/ttyUSB1",
-		"/dev/ttyUSB2", "/dev/ttyUSB3", "/dev/ttyUSB4", "/dev/ttyUSB5",
-		"/dev/ttyAMA0", "/dev/ttyAMA1", "/dev/ttyACM0", "/dev/ttyACM1",
-		"/dev/rfcomm0", "/dev/rfcomm1", "/dev/ircomm0", "/dev/ircomm1" };
+		{ "/dev/ttyS0", "/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4",
+				"/dev/ttyS5", "/dev/ttyS6", "/dev/ttyS7", "/dev/ttyS8", "/dev/ttyS9",
+				"/dev/ttyS10", "/dev/ttyS11", "/dev/ttyS12", "/dev/ttyS13",
+				"/dev/ttyS14", "/dev/ttyS15", "/dev/ttyUSB0", "/dev/ttyUSB1",
+				"/dev/ttyUSB2", "/dev/ttyUSB3", "/dev/ttyUSB4", "/dev/ttyUSB5",
+				"/dev/ttyAMA0", "/dev/ttyAMA1", "/dev/ttyACM0", "/dev/ttyACM1",
+				"/dev/rfcomm0", "/dev/rfcomm1", "/dev/ircomm0", "/dev/ircomm1" };
 
 struct serial_handle_t
 {
@@ -31,24 +30,24 @@ typedef struct
 } baudSelect_t;
 
 static const baudSelect_t baudSelect[] =
-{
-{ B50, 50 },
-{ B75, 75 },
-{ B110, 110 },
-{ B134, 134 },
-{ B150, 150 },
-{ B200, 200 },
-{ B300, 300 },
-{ B600, 600 },
-{ B1200, 1200 },
-{ B1800, 1800 },
-{ B2400, 2400 },
-{ B4800, 4800 },
-{ B9600, 9600 },
-{ B19200, 19200 },
-{ B38400, 38400 },
-{ B57600, 57600 },
-{ B115200, 115200 } };
+		{
+				{ B50, 50 },
+				{ B75, 75 },
+				{ B110, 110 },
+				{ B134, 134 },
+				{ B150, 150 },
+				{ B200, 200 },
+				{ B300, 300 },
+				{ B600, 600 },
+				{ B1200, 1200 },
+				{ B1800, 1800 },
+				{ B2400, 2400 },
+				{ B4800, 4800 },
+				{ B9600, 9600 },
+				{ B19200, 19200 },
+				{ B38400, 38400 },
+				{ B57600, 57600 },
+				{ B115200, 115200 } };
 
 e_int32 Serial_Open(serial_t *port, char *name)
 {
@@ -56,7 +55,7 @@ e_int32 Serial_Open(serial_t *port, char *name)
 	e_assert(port, E_ERROR_INVALID_PARAMETER);
 
 	port->priv = (struct serial_handle_t*) malloc(
-			sizeof(struct serial_handle_t));
+													sizeof(struct serial_handle_t));
 	e_assert(port->priv, E_ERROR_BAD_ALLOCATE);
 
 	/* open port */
@@ -64,7 +63,7 @@ e_int32 Serial_Open(serial_t *port, char *name)
 
 	/* failed to open */
 	if (fd == -1)
-	{
+			{
 		port->priv->port_handle = 0;
 		return E_ERROR;
 	}
@@ -90,7 +89,7 @@ e_int32 Serial_Close(serial_t *port)
 
 		/* close the port */
 		if (close(port->priv->port_handle) == -1)
-		{
+				{
 			return E_ERROR;
 		}
 		free(port->priv);
@@ -116,15 +115,15 @@ e_int32 Serial_Settings(serial_t *port, e_uint32 baud, char parity,
 	/* check baud is valid */
 	numBaud = sizeof(baudSelect) / sizeof(baudSelect_t);
 	for (i = 0; i < numBaud; i++)
-	{
+			{
 		if (baud == baudSelect[i].baudIn)
-		{
+				{
 			actual_baud = baudSelect[i].baudOut;
 			break;
 		}
 	}
 	if (i == numBaud)
-	{
+			{
 		return E_ERROR_INVALID_PARAMETER;
 	}
 
@@ -136,18 +135,18 @@ e_int32 Serial_Settings(serial_t *port, e_uint32 baud, char parity,
 	switch (parity)
 	{
 	case 'n':
-	case 'N':
+		case 'N':
 		options.c_cflag &= ~PARENB;
 		break;
 
 	case 'o':
-	case 'O':
+		case 'O':
 		options.c_cflag |= PARENB;
 		options.c_cflag |= PARODD;
 		break;
 
 	case 'e':
-	case 'E':
+		case 'E':
 		options.c_cflag |= PARENB;
 		options.c_cflag &= ~PARODD;
 		break;
@@ -203,7 +202,7 @@ e_int32 Serial_Settings(serial_t *port, e_uint32 baud, char parity,
 
 	/* set options for port */
 	if (tcsetattr(port->priv->port_handle, TCSAFLUSH, &options) != 0)
-	{
+			{
 		return E_ERROR;
 	}
 
@@ -234,82 +233,79 @@ e_int32 Serial_Select(serial_t *port, e_int32 type, e_int32 timeout_usec)
 	//把要检测的句柄fd，加入到集合里。
 	FD_SET(fd, &inputs);
 
-	while (1)
+	checkfds = inputs;
+	/*如果参数timeout设为NULL则表示select（）没有timeout
+	 执行成功则返回文件描述词状态已改变的个数，如果返回0代表在描述词状态改变前已超过timeout时间，
+	 当有错误发生时则返回-1，错误原因存于errno，此时参数readfds，writefds，exceptfds和
+	 timeout的值变成不可预测。
+	 EBADF 文件描述词为无效的或该文件已关闭
+	 EINTR 此调用被信号所中断
+	 EINVAL 参数n 为负值。
+	 ENOMEM 核心内存不足
+	 */
+	switch (type)
 	{
-		checkfds = inputs;
-		/*如果参数timeout设为NULL则表示select（）没有timeout
-		 执行成功则返回文件描述词状态已改变的个数，如果返回0代表在描述词状态改变前已超过timeout时间，
-		 当有错误发生时则返回-1，错误原因存于errno，此时参数readfds，writefds，exceptfds和
-		 timeout的值变成不可预测。
-		 EBADF 文件描述词为无效的或该文件已关闭
-		 EINTR 此调用被信号所中断
-		 EINVAL 参数n 为负值。
-		 ENOMEM 核心内存不足
-		 */
-		switch (type)
-		{
-		case E_READ:
-			//DMSG(( STDOUT,"Com_Select FD=%d timeout=%dus",fd, timeout_usec));
-			if (timeout_usec > 0)
-			{
-				timeout.tv_sec = (long) (timeout_usec / ((1000*1000)));
-				timeout.tv_usec = (long) (timeout_usec % ((1000*1000)));
-				ret = select(fd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
-						&timeout);
-			}
-			else
-			{
-				ret = select(fd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
-						NULL);
-			}
-			//DMSG((STDOUT,"Com_Select %d socket can read/write",ret));
-			break;
-		case E_WRITE:
-			if (timeout_usec > 0)
-			{
-				timeout.tv_sec = (long) (timeout_usec / ((1000*1000)));
-				timeout.tv_usec = (long) (timeout_usec % ((1000*1000)));
-				ret = select(fd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
-						&timeout);
-			}
-			else
-			{
-				ret = select(fd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
-						NULL);
-			}
-			break;
-		default:
-			return E_ERROR_INVALID_PARAMETER;
+	case E_READ:
+		//DMSG(( STDOUT,"Com_Select FD=%d timeout=%dus",fd, timeout_usec));
+		if (timeout_usec > 0)
+				{
+			timeout.tv_sec = (long) (timeout_usec / ((1000 * 1000)));
+			timeout.tv_usec = (long) (timeout_usec % ((1000 * 1000)));
+			ret = select(fd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
+							&timeout);
 		}
-
-		//if (e_check(ret==0,"Serial select time out."))
-		if(ret == 0)
+		else
 		{
-			return E_ERROR_TIME_OUT;
+			ret = select(fd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
+							NULL);
 		}
-		if (e_check(ret==-1,"Serial select error."))
+		//DMSG((STDOUT,"Com_Select %d socket can read/write",ret));
+		break;
+	case E_WRITE:
+		if (timeout_usec > 0)
+				{
+			timeout.tv_sec = (long) (timeout_usec / ((1000 * 1000)));
+			timeout.tv_usec = (long) (timeout_usec % ((1000 * 1000)));
+			ret = select(fd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
+							&timeout);
+		}
+		else
 		{
-			return E_ERROR_IO;
+			ret = select(fd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
+							NULL);
 		}
-
-		switch (type)
-		{
-		case E_READ:
-			ret = FD_ISSET(fd, &checkfds);
-			e_assert(ret, E_ERROR_IO);
-			ioctl(fd, FIONREAD, &ret); //取得数据长度
-			e_assert((ret > 0), E_ERROR_IO);
-			//DMSG((STDOUT,"Com_Select %d data can read",ret));
-			//可读数据长度>0
-			return ret;
-		case E_WRITE:
-			ret = FD_ISSET(fd, &checkfds);
-			e_assert(ret, E_ERROR_IO);
-			//DMSG((STDOUT,"Com_Select socket ready to write"));
-			return E_OK;
-		}
-
+		break;
+	default:
+		return E_ERROR_INVALID_PARAMETER;
 	}
+
+	//if (e_check(ret==0,"Serial select time out."))
+	if (ret == 0)
+			{
+		return E_ERROR_TIME_OUT;
+	}
+	if (e_check(ret==-1,"Serial select error."))
+	{
+		return E_ERROR_IO;
+	}
+
+	switch (type)
+	{
+	case E_READ:
+		ret = FD_ISSET(fd, &checkfds);
+		e_assert(ret, E_ERROR_IO);
+		ioctl(fd, FIONREAD, &ret); //取得数据长度
+		e_assert((ret > 0), E_ERROR_IO);
+		//DMSG((STDOUT,"Com_Select %d data can read",ret));
+		//可读数据长度>0
+		return ret;
+	case E_WRITE:
+		ret = FD_ISSET(fd, &checkfds);
+		e_assert(ret, E_ERROR_IO);
+		//DMSG((STDOUT,"Com_Select socket ready to write"));
+		return E_OK;
+	}
+
 	return E_ERROR;
 }
 
@@ -322,7 +318,7 @@ e_int32 Serial_Read(serial_t *port, e_uint8 *data, e_int32 size)
 	bytesRead = 0;
 	//简单实现全局读超时设置，待优化
 	if (port->read_timeout_usec > 0)
-	{
+			{
 		Serial_Select(port, E_READ, port->read_timeout_usec);
 	}
 
@@ -331,12 +327,12 @@ e_int32 Serial_Read(serial_t *port, e_uint8 *data, e_int32 size)
 	{
 		/* get bytes from port */
 		readCount = read(port->priv->port_handle, data + bytesRead,
-				size - bytesRead);
+							size - bytesRead);
 		bytesRead += readCount;
 
 		/* if no bytes read timeout has occured */
 		if (readCount == 0)
-		{
+				{
 			break;
 		}
 	}
@@ -350,7 +346,7 @@ e_int32 Serial_Write(serial_t *port, e_uint8 *data, e_int32 size)
 	e_assert(port&&port->state, E_ERROR);
 	//简单实现全局写超时设置，待优化
 	if (port->write_timeout_usec > 0)
-	{
+			{
 		Serial_Select(port, E_WRITE, port->write_timeout_usec);
 	}
 
@@ -359,12 +355,12 @@ e_int32 Serial_Write(serial_t *port, e_uint8 *data, e_int32 size)
 	{
 		/* get bytes from port */
 		writeCount = write(port->priv->port_handle, data + bytesWritten,
-				size - bytesWritten);
+							size - bytesWritten);
 		bytesWritten += writeCount;
 
 		/* if no bytes read timeout has occured */
 		if (writeCount == 0)
-		{
+				{
 			break;
 		}
 	}

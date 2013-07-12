@@ -31,7 +31,8 @@ extern "C"
  * \param length The number of byte in the data sequence
  */
 e_uint8 DEV_EXPORT hd_compute_xor(const e_uint8 * const data, const e_uint32 length);
-
+void DEV_EXPORT hd_polar2xyz(float *x, float *y, float *z, double distance, float angle_h,
+		float angle_v);
 #ifdef __cplusplus
 }
 #endif

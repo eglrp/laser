@@ -17,12 +17,15 @@
 /* Dependencies */
 #include <arch/hd_socket_api.h>
 #include <arch/hd_serial_api.h>
+#include <arch/hd_pipe_api.h>
 
 /*结构体定义*/
 typedef struct hd_connect_t {
+	//all field is private,do not access direct
 	union {
 		socket_t *socket;
 		serial_t serial;
+		pipe_t 	 pipe;
 	};
 	int state;
 	int mask;
@@ -37,6 +40,8 @@ e_int32 DEV_EXPORT sc_open_socket(hd_connect_t* sc, char* ip_address,
 		e_uint16 tcp_port);
 e_int32 DEV_EXPORT sc_open_serial(hd_connect_t* sc, char* com_name,
 		e_uint32 baudrate);
+e_int32 DEV_EXPORT sc_open_pipe(hd_connect_t* sc, char* memory_name,
+		e_uint32 size);
 
 e_int32 DEV_EXPORT sc_close(hd_connect_t* sc);
 e_int32 DEV_EXPORT sc_state(hd_connect_t *sc);

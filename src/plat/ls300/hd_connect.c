@@ -18,7 +18,7 @@
 #include <arch/hd_timer_api.h>
 
 enum {
-	E_CONNECT_SOCKET = 1, E_CONNECT_COM = 2,
+	E_CONNECT_SOCKET = 1, E_CONNECT_COM = 2, E_CONNECT_PIPE = 3,
 };
 
 static char tostring[1024];
@@ -30,7 +30,7 @@ static char tostring[1024];
  *\param sick_tcp_port 定义了套接字的端口号。
  *\retval E_OK 表示成功。
  */
-e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address,e_uint16 sick_tcp_port) {
+e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address, e_uint16 sick_tcp_port) {
 	int ret;
 	e_assert(sc, E_ERROR_INVALID_HANDLER);
 	memset(sc, 0, sizeof(hd_connect_t));
@@ -78,6 +78,31 @@ e_int32 sc_open_serial(hd_connect_t* sc, char* com_name, e_uint32 baudrate) {
 }
 
 /**
+ *\brief 创建管道连接，并设置管道的相应属性。
+ *\param sc 定义了连接的对象指针。
+ *\param pipe_name 定义了串口号。
+ *\param size 定义了管道缓冲区大小。
+ *\retval E_OK 表示成功。
+ */
+e_int32 sc_open_pipe(hd_connect_t* sc, char* pipe_name, e_uint32 size)
+{
+	int ret;
+	e_assert(sc, E_ERROR_INVALID_HANDLER);
+	memset(sc, 0, sizeof(hd_connect_t));
+
+	if (pipe_name == NULL) {
+		pipe_name = PIPE_NAME_FRAME;
+	}
+
+	e_assert(size!=0, E_ERROR_INVALID_PARAMETER);
+	ret = Pipe_Open(&sc->pipe, pipe_name, size, E_WRITE);
+	e_assert(ret>0, ret);
+	sc->state = E_OK;
+	sc->mask = E_CONNECT_PIPE;
+	return E_OK;
+}
+
+/**
  *\brief 关闭相应的串口连接或者网络连接。
  *\param sc 定义了海达连接的对象指针。
  *\retval E_OK 表示成功。
@@ -91,6 +116,9 @@ e_int32 sc_close(hd_connect_t* sc) {
 		break;
 	case E_CONNECT_COM:
 		Serial_Close(&sc->serial);
+		break;
+	case E_CONNECT_PIPE:
+		Pipe_Close(&sc->pipe);
 		break;
 	default:
 		return E_ERROR;
@@ -128,6 +156,8 @@ e_int32 sc_select(hd_connect_t *sc, e_int32 type, e_int32 timeout_usec) {
 		return Socket_Select(sc->socket, type, timeout_usec);
 	case E_CONNECT_COM:
 		return Serial_Select(&sc->serial, type, timeout_usec);
+	case E_CONNECT_PIPE:
+		return Pipe_Select(&sc->pipe, type, timeout_usec);
 	default:
 		return E_ERROR_INVALID_HANDLER;
 	}
@@ -141,13 +171,14 @@ e_int32 sc_select(hd_connect_t *sc, e_int32 type, e_int32 timeout_usec) {
 e_int32 sc_connect(hd_connect_t *sc) {
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
 
-	switch (sc->mask) {
+	switch (sc->mask) { //check connect is ready to write simulate connect processing
 	case E_CONNECT_SOCKET:
 		return Socket_Connect(sc->socket);
 		break;
 	case E_CONNECT_COM:
-		//check com is ready to write simulate connect processing
 		return Serial_Select(&sc->serial, E_WRITE, DEFAULT_COM_TIMEOUT);
+	case E_CONNECT_PIPE:
+		return sc->pipe.state ? E_OK : E_ERROR;
 	default:
 		return E_ERROR_INVALID_HANDLER;
 	}
@@ -168,6 +199,8 @@ e_int32 sc_recv(hd_connect_t *sc, e_uint8 *buffer, e_uint32 blen) {
 		return Socket_Recv(sc->socket, buffer, blen);
 	case E_CONNECT_COM:
 		return Serial_Read(&sc->serial, buffer, blen);
+	case E_CONNECT_PIPE:
+		return Pipe_Read(&sc->pipe, buffer, blen);
 	default:
 		return E_ERROR_INVALID_HANDLER;
 	}
@@ -188,6 +221,8 @@ e_int32 sc_send(hd_connect_t *sc, e_uint8 *buffer, e_uint32 blen) {
 		return Socket_Send(sc->socket, buffer, blen);
 	case E_CONNECT_COM:
 		return Serial_Write(&sc->serial, buffer, blen);
+	case E_CONNECT_PIPE:
+		return Pipe_Write(&sc->pipe, buffer, blen);
 	default:
 		return E_ERROR_INVALID_HANDLER;
 	}
@@ -259,7 +294,6 @@ e_int32 sc_request_and_check(hd_connect_t *sc, e_uint8 *send_buffer,
 		e_uint8 * check_string, e_uint32 timeout_usec) {
 	e_int32 ret;
 	e_assert(sc&&sc->state, E_ERROR_INVALID_HANDLER);
-	/* Timeval structs for handling timeouts */
 	e_uint32 beg_time, elapsed_time;
 
 	/* Acquire the elapsed time since epoch */
@@ -280,7 +314,8 @@ e_int32 sc_request_and_check(hd_connect_t *sc, e_uint8 *send_buffer,
 		ret = sc_select(sc, E_READ, timeout_usec - elapsed_time);
 		e_assert(ret>0, ret);
 
-		ret = sc_recv(sc, recv_buffer, rlen); //收到了，就不要管超不超时，直接返回结果
+		//收到了，就不要管超不超时，直接返回结果
+		ret = sc_recv(sc, recv_buffer, rlen);
 		if (ret > 0) {
 			ret = strncmp(recv_buffer, check_string, rlen);
 			if (ret == 0)
@@ -304,11 +339,11 @@ sc_tostring(hd_connect_t *sc) {
 	switch (sc->mask) {
 	case E_CONNECT_SOCKET:
 		sprintf(tostring, "Sokcet Connect:%s:%u", sc->socket->ip_address,
-		        (unsigned int)sc->socket->port);
+				(unsigned int) sc->socket->port);
 		break;
 	case E_CONNECT_COM:
 		sprintf(tostring, "Serial Connect:%s speed:%u Hz", sc->serial.name,
-		        (unsigned int)sc->serial.speed);
+				(unsigned int) sc->serial.speed);
 		break;
 	default:
 		return NULL;
