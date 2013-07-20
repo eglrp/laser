@@ -7,6 +7,7 @@
 //  2013-05-08
 //  yjcpui@gmail.com
 //----------------------------------------------------------------------------
+#include <arch/hd_socket_api.h>
 
 #ifdef ANDROID_OS
 #include <signal.h>
@@ -22,12 +23,12 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <arch/hd_socket_api.h>
+
 
 #define SOCKET_ERROR -1
 
 static struct sigaction sa_old =
-{ };
+		{ };
 
 static volatile int is_inited = 0;
 
@@ -39,12 +40,12 @@ void Socket_Init()
 	 就会让底层抛出一个SIGPIPE信号。这个信号的缺省处理方法是退出进程，大多数时候这都
 	 不是我们期望的。因此我们需要重载这个信号的处理方法。调用以下代码，即可安全的屏蔽SIGPIPE：*/
 	struct sigaction sa =
-	{ };
+			{ };
 	sa.sa_handler = SIG_IGN;
 	sa.sa_flags = SA_RESTART;
 
 	if (sigaction(SIGPIPE, &sa, &sa_old) == -1)
-	{
+			{
 		DMSG((STDOUT,"error:sigaction\r\n"));
 	}
 }
@@ -105,7 +106,7 @@ void Socket_Close(socket_t **socket)
 {
 	int socketfd;
 	if (socket && (*socket))
-	{
+			{
 		if ((*socket)->state)
 		{
 			socketfd = (int) ((*socket)->priv);
@@ -154,7 +155,7 @@ e_int32 Socket_Ioctrl(socket_t *socket, e_int32 type)
 e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 {
 	int sockfd, ret;
-	fd_set inputs, checkfds;
+	fd_set inputs, checkfds,*readfds = NULL, *writefds = NULL;
 	struct timeval timeout;
 
 	e_assert((socket && socket->state), E_ERROR);
@@ -166,7 +167,19 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 	//把要检测的句柄sockfd，加入到集合里。
 	FD_SET(sockfd, &inputs);
 
-	while (1)
+	switch (type)
+	{
+	case E_READ:
+		readfds = &checkfds;
+		break;
+	case E_WRITE:
+		writefds = &checkfds;
+		break;
+	default:
+		return E_ERROR_INVALID_PARAMETER;
+	}
+
+	for(;;)
 	{
 		checkfds = inputs;
 		/*如果参数timeout设为NULL则表示select（）没有timeout
@@ -178,44 +191,21 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 		 EINVAL 参数n 为负值。
 		 ENOMEM 核心内存不足
 		 */
-		switch (type)
+		if (timeout_usec > 0)
+				{
+			timeout.tv_sec = (long) (timeout_usec / (1000*1000));
+			timeout.tv_usec = (long) (timeout_usec % (1000*1000));
+			ret = select(sockfd + 1, readfds, writefds, (fd_set *) 0,
+							&timeout);
+		}
+		else
 		{
-		case E_READ:
-			//DMSG(( STDOUT,"Socket_Select FD=%d timeout=%dus",sockfd, timeout_usec));
-			if (timeout_usec > 0)
-			{
-				timeout.tv_sec = (long) (timeout_usec / (1000*1000));
-				timeout.tv_usec = (long) (timeout_usec % (1000*1000));
-				ret = select(sockfd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
-						&timeout);
-			}
-			else
-			{
-				ret = select(sockfd + 1, &checkfds, (fd_set *) 0, (fd_set *) 0,
-						NULL);
-			}
-			//DMSG((STDOUT,"Socket_Select %d socket can read/write",ret));
-			break;
-		case E_WRITE:
-			if (timeout_usec > 0)
-			{
-				timeout.tv_sec = (long) (timeout_usec / (1000*1000));
-				timeout.tv_usec = (long) (timeout_usec % (1000*1000));
-				ret = select(sockfd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
-						&timeout);
-			}
-			else
-			{
-				ret = select(sockfd + 1, (fd_set *) 0, &checkfds, (fd_set *) 0,
-						NULL);
-			}
-			break;
-		default:
-			return E_ERROR_INVALID_PARAMETER;
+			ret = select(sockfd + 1, readfds, writefds, (fd_set *) 0,
+							NULL);
 		}
 
 		if (ret == 0)
-		{
+				{
 			return E_ERROR_TIME_OUT;
 		}
 		else if (e_check(ret==-1,"Socket select error.\r\n"))
@@ -267,7 +257,7 @@ e_int32 Socket_Bind(socket_t *socket)
 
 	peer_address.sin_port = htons(socket->port);
 	ret = bind(sockfd, (struct sockaddr *) &peer_address,
-			sizeof(struct sockaddr_in));
+				sizeof(struct sockaddr_in));
 	e_assert((ret != SOCKET_ERROR), E_ERROR_IO);
 	return E_OK;
 }
@@ -296,23 +286,21 @@ e_int32 Socket_Connect(socket_t *socket)
 	ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
 	e_assert(ret, E_ERROR_INVALID_ADDRESS);
 	peer_address.sin_port = htons(socket->port);
-//	ret = connect(sockfd, (struct sockaddr *) &peer_address,
-//			sizeof(struct sockaddr));
 	unsigned long ul = 1;
 	ioctl(sockfd, FIONBIO, &ul); //设置为非阻塞模式
 	ret = connect(sockfd, (struct sockaddr *) &peer_address,
-			sizeof(struct sockaddr));
+					sizeof(struct sockaddr));
 	if (ret == -1)
-	{
+			{
 		fd_set set;
-		int len=sizeof(int);
+		int len = sizeof(int);
 		struct timeval tm;
 		tm.tv_sec = 1;
 		tm.tv_usec = 0;
 		FD_ZERO(&set);
 		FD_SET(sockfd, &set);
 		if (select(sockfd + 1, NULL, &set, NULL, &tm) > 0)
-		{
+				{
 			getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &ret, (socklen_t *) &len);
 			if (ret == 0)
 				ret = E_OK;
@@ -416,7 +404,7 @@ e_int32 Socket_Recv(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
 
 		/* if no bytes read timeout return byteRecvied */
 		if (byteCount == 0)
-		{
+				{
 			break;
 		}
 	}
@@ -463,7 +451,7 @@ e_int32 Socket_Send(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
 
 		/* if no bytes send return byteSend */
 		if (byteCount == 0)
-		{
+				{
 			break;
 		}
 	}

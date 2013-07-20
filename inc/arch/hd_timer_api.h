@@ -74,7 +74,7 @@ e_uint32 DEV_EXPORT
 GetTickCount( );
 
 /*
-*	Delay
+*	Delay delay_val ms
 */
 
 void DEV_EXPORT 

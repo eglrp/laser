@@ -5,9 +5,12 @@
  * email: yjcpui@gmail.com
  * date: 2013-05-08
  */
-#ifdef ANDROID_OS
 
 #include <arch/hd_event_api.h>
+
+#ifdef ANDROID_OS
+
+
 #include <arch/hd_thread_api.h>
 #include <arch/hd_timer_api.h>
 #include "hd_event_queue_android.h"

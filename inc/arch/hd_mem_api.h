@@ -6,11 +6,10 @@
 //
 //
 //----------------------------------------------------------------------------
+#include "hd_plat_base.h"
 
 #ifndef _HD_MEM_API_H_
 #define _HD_MEM_API_H_
-
-#include "hd_plat_base.h"
 //----------------------------------------------------------------------------
 //	create memory in system or not
 #define E_MEM_IN		0x00001

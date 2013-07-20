@@ -42,7 +42,7 @@ extern "C" {
 #include <gif/gif_api.h>
 } ////////////////////////////////////////////////////////////////////////
 //底层开发
-static e_int32 register_file_format(file_op_t* op, int i); //注册文件读写接口
+static e_int32 register_file_format(data_adapter_t *da, int i); //注册文件读写接口
 
 //PCL
 static e_int32 inter_pcl_open(file_ptr_t *file);
@@ -188,12 +188,15 @@ file_adapter_t file_adpt[] = {
 
 const static int FILE_TYPE_NUM = sizeof(file_adpt) / sizeof(file_adapter_t);
 
+/////////////////////////////////////////////////////////////////////////////////
+//da
+
 e_int32 da_open(data_adapter_t *da, e_uint8 *name, int width, int height, int mode) {
-	e_assert(strlen((char*) name) < FILE_NAME_MAX_LENGTH, E_ERROR);
+	e_assert(strlen((char*) name) < MAX_PATH_LEN, E_ERROR);
 
 	memset(da, 0, sizeof(data_adapter_t));
 
-	char tmp[FILE_NAME_MAX_LENGTH] = { 0 };
+	char tmp[MAX_PATH_LEN] = { 0 };
 	char* file_type = NULL;
 	int num;
 
@@ -211,7 +214,7 @@ e_int32 da_open(data_adapter_t *da, e_uint8 *name, int width, int height, int mo
 		int ret = strncmp(file_type, file_adpt[num].file_suffix,
 							strlen(file_adpt[num].file_suffix));
 		if (!ret) {
-			register_file_format(&da->op, num);
+			register_file_format(da, num);
 			da->file_info.pnt_type = file_adpt[num].pnt_type;
 			if (mode == E_READ) {
 				da->file.read.info = da->file_info;
@@ -265,7 +268,7 @@ e_int32 da_close(data_adapter_t *da) {
 
 e_int32 da_read_points(data_adapter_t *da, point_t* point, int buf_len)
 		{
-	e_assert(da && da->state && da->op.read_points && da->file_info.mode == E_READ,
+	e_assert(da && da->state && da->pnt_type == point->type && da->op.read_points && da->file_info.mode == E_READ,
 				E_ERROR_INVALID_HANDLER);
 	da->op.read_points(&da->file.read, point, buf_len);
 	return E_OK;
@@ -273,7 +276,7 @@ e_int32 da_read_points(data_adapter_t *da, point_t* point, int buf_len)
 
 e_int32 da_append_points(data_adapter_t *da, point_t* point, int pt_num, int file_right) {
 	e_int32 ret;
-	e_assert(da && da->state && da->op.append_points && point,
+	e_assert(da && da->state && da->pnt_type == point->type && da->op.append_points && point,
 				E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
@@ -300,7 +303,7 @@ e_int32 da_append_points(data_adapter_t *da, point_t* point, int pt_num, int fil
 e_int32 da_append_row(data_adapter_t *da, point_t* point, int file_right)
 		{
 	e_int32 ret;
-	e_assert(da && da->state && da->op.append_row && point, E_ERROR_INVALID_HANDLER);
+	e_assert(da && da->state && da->pnt_type == point->type && da->op.append_row && point, E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
 	if (!file_right) {
@@ -326,7 +329,7 @@ e_int32 da_append_row(data_adapter_t *da, point_t* point, int file_right)
 e_int32 da_write_row(data_adapter_t *da, e_uint32 row_idx, point_t* point, int file_right)
 		{
 	e_int32 ret;
-	e_assert(da && da->state && da->op.write_row && point, E_ERROR_INVALID_HANDLER);
+	e_assert(da && da->state && da->pnt_type == point->type && da->op.write_row && point, E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
 	if (!file_right) {
@@ -352,7 +355,7 @@ e_int32 da_write_column(data_adapter_t *da, e_uint32 column_idx, point_t* point,
 		int file_right)
 		{
 	e_int32 ret;
-	e_assert(da && da->state && da->op.write_column && point, E_ERROR_INVALID_HANDLER);
+	e_assert(da && da->state&& da->pnt_type == point->type && da->op.write_column && point, E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
 	if (!file_right) {
@@ -374,9 +377,40 @@ e_int32 da_write_column(data_adapter_t *da, e_uint32 column_idx, point_t* point,
 	return ret;
 }
 
-static e_int32 register_file_format(file_op_t* op, int i) {
+e_int32 da_write_point(data_adapter_t *da, int x, int y, point_t* point,
+		int file_right)
+		{
+	return E_ERROR;
+}
+
+e_int32
+da_read_row(data_adapter_t *da, e_uint32 row_idx, point_t* buf)
+		{
+	return E_ERROR;
+}
+
+e_int32
+da_read_column(data_adapter_t *da, e_uint32 column_idx, point_t* buf)
+		{
+	return E_ERROR;
+}
+
+e_int32
+da_append_column(data_adapter_t *da, point_t* point,
+		int file_right)
+		{
+	return E_ERROR;
+}
+e_int32
+da_read_header(data_adapter_t *da, file_info_t *header)
+		{
+	return E_ERROR;
+}
+
+static e_int32 register_file_format(data_adapter_t *da, int i) {
 	e_assert(file_adpt[i].op.open && file_adpt[i].op.close, E_ERROR);
-	(*op) = file_adpt[i].op;
+	da->op = file_adpt[i].op;
+	da->pnt_type = file_adpt[i].pnt_type;
 	return E_OK;
 }
 
@@ -442,10 +476,10 @@ static e_int32 inter_pcl_write_column(file_ptr_t *file, e_uint32 column_idx,
 }
 
 static point_xyz_t* transfor2xyz(point_t* pnts, int i, point_xyz_t *xyz) {
-	point_polar_t *polar = (point_polar_t*) &pnts->mem;
+	point_polar_t *polar = (point_polar_t*) pnts->mem;
 	switch (pnts->type) {
 	case PNT_TYPE_XYZ:
-		return ((point_xyz_t*) &pnts->mem) + i;
+		return ((point_xyz_t*) pnts->mem) + i;
 	case PNT_TYPE_POLAR:
 		hd_polar2xyz(&xyz->x, &xyz->y, &xyz->z,
 						polar[i].distance, polar[i].angle_h, polar[i].angle_v);
@@ -484,7 +518,7 @@ static e_int32 inter_pcl_append_column(file_ptr_t *file, point_t* point) {
 static e_int32 inter_pcl_read_points(file_ptr_t *file, point_t* pnts, int buf_len) {
 	pcl::PointCloud<pcl::PointXYZ> *cloud =
 			(pcl::PointCloud<pcl::PointXYZ> *) file->handle;
-	point_xyz_t *point = (point_xyz_t*) &pnts->mem;
+	point_xyz_t *point = (point_xyz_t*) pnts->mem;
 	while (buf_len--)
 	{
 		point->x = cloud->points[file->cousor].x;
@@ -664,7 +698,7 @@ static e_int32 inter_jpg_write_column(file_ptr_t *file, e_uint32 column_idx,
 }
 static e_int32 inter_jpg_append_points(file_ptr_t *file, point_t* pnts, int pt_num) {
 	e_uint8 *jpg = (e_uint8 *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 	while (pt_num--)
 	{
 		jpg[file->cousor] = point->gray;
@@ -682,7 +716,7 @@ static e_int32 inter_jpg_append_column(file_ptr_t *file, point_t* point) {
 
 static e_int32 inter_jpg_read_points(file_ptr_t *file, point_t* pnts, int buf_len) {
 	e_uint8 *jpg = (e_uint8 *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 	while (buf_len--)
 	{
 		point->gray = jpg[file->cousor];
@@ -821,7 +855,7 @@ static e_int32 _insert_frame(file_ptr_t *file) {
 static e_int32 inter_gif_write_row(file_ptr_t *file, e_uint32 row_idx, point_t* pnts) {
 	int ret;
 	jpg_private_t *gif = (jpg_private_t *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 
 	//add one row
 	for (unsigned int i = 0; i < file->info.width; i++)
@@ -847,7 +881,7 @@ static e_int32 inter_gif_append_points(file_ptr_t *file, point_t* point, int pt_
 static e_int32 inter_gif_append_row(file_ptr_t *file, point_t* pnts) {
 	int ret;
 	jpg_private_t *gif = (jpg_private_t *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 	//add one row
 	for (unsigned int i = 0; i < file->info.width; i++)
 			{
@@ -1034,7 +1068,7 @@ static e_int32 inter_sprite_write_column(file_ptr_t *file, e_uint32 column_idx,
 		point_t* pnts) {
 	e_uint8 *pbuf;
 	sprite_private_t *sprite = (sprite_private_t *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 	e_assert(file->info.width > column_idx, E_ERROR);
 	pbuf = &sprite->buf[column_idx];
 	for (unsigned int i = 0; i < file->info.height; i++) {
@@ -1048,7 +1082,7 @@ static e_int32 inter_sprite_write_column(file_ptr_t *file, e_uint32 column_idx,
 }
 static e_int32 inter_sprite_append_points(file_ptr_t *file, point_t* pnts, int pt_num) {
 	sprite_private_t *sprite = (sprite_private_t *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 	while (pt_num--)
 	{
 		sprite->buf[file->cousor] = point->gray;
@@ -1066,7 +1100,7 @@ static e_int32 inter_sprite_append_column(file_ptr_t *file, point_t* point) {
 
 static e_int32 inter_sprite_read_points(file_ptr_t *file, point_t* pnts, int buf_len) {
 	e_uint8 *sprite = (e_uint8 *) file->handle;
-	point_gray_t *point = (point_gray_t*) &pnts->mem;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
 	while (buf_len--)
 	{
 		point->gray = sprite[file->cousor];

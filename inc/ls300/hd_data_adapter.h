@@ -17,14 +17,13 @@
 #include <arch/hd_plat_base.h>
 #include <comm/hd_point_type.h>
 
-#define FILE_NAME_MAX_LENGTH 64
-#define FILE_SUFFIX_LENGTH   10
 #define POINT_NUM_BUF        (10*1024)
+#define FILE_SUFFIX_LENGTH   (16)
 
 
 typedef struct file_info_t
 {
-	char file_name[FILE_NAME_MAX_LENGTH];
+	char file_name[MAX_PATH_LEN];
 	e_uint32 width;
 	e_uint32 height;
 	e_int32 pnt_type;
@@ -70,6 +69,7 @@ typedef struct data_adapter_t
 		};
 	} file;
 
+	e_int32 pnt_type;
 	file_op_t op;
 	e_int32 state;
 } data_adapter_t;

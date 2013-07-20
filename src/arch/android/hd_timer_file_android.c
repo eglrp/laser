@@ -4,10 +4,10 @@
  * date: 2013-05-08
  * ANDROID_OS
  */
-#ifdef ANDROID_OS
 
 #include <arch/hd_timer_api.h>
 
+#ifdef ANDROID_OS
 #include <unistd.h>
 #include <time.h>
 #include <string.h>

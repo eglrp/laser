@@ -181,3 +181,9 @@ void _gluPerspective( GLdouble fovY, GLdouble aspect, GLdouble zNear, GLdouble z
     //Finally call glFrustum, this is all gluPerspective does anyway! This is why we calculate half the distance between the clipping planes - glFrustum takes an offset from zero for each clipping planes distance. (Saves 2 divides)
     glFrustum( -fW, fW, -fH, fH, zNear, zFar );
 }
+
+
+
+
+
+

@@ -15,7 +15,7 @@
 #include <ls300/hd_scan_data_pool.h>
 #include <ls300/hd_laser_control.h>
 #include <sickld/sickld.h>
-#include <ls300/hd_data_adapter.h>
+#include <ls300/hd_data_manager.h>
 
 extern "C" {
 #include <jpeg/jpeglib.h>
@@ -50,11 +50,10 @@ struct scan_job_t {
 
 	//文件读写
 	char data_file[MAX_PATH_LEN];
-	data_adapter_t writer;
+	data_manager_t* writer;
 	char gray_dir[MAX_PATH_LEN];
-	point_t *points;
-
-	e_uint8 *gray;
+	point_t *points_xyz;
+	point_t *points_gray;
 
 	//临时记录
 	e_uint32 slip_idx;
@@ -164,9 +163,9 @@ static void read_pool_data_routine(void* data) {
 	}
 
 	if (e_check(sj->slip_idx*(sj->active_sectors.left+sj->active_sectors.right) != sj->width, "#ERROR# 列数与要求的不一致!\n")) {
-		DMSG((STDOUT, "sj->slip_idx = %u, sj->width = %u \n",
-				(unsigned int)sj->slip_idx,(unsigned int)sj->width));
-		sj->width = sj->slip_idx * (sj->active_sectors.left+sj->active_sectors.right); //TODO:修复这里,不允许简单丢掉！!
+		DMSG((STDOUT, "sj->slip_idx*sector_num = %u, sj->width = %u \n",
+				(unsigned int)sj->slip_idx*(sj->active_sectors.left+sj->active_sectors.right),(unsigned int)sj->width));
+		sj->width = sj->slip_idx * (sj->active_sectors.left + sj->active_sectors.right); //TODO:修复这里,不允许简单丢掉！!
 	}
 
 	scan_done(sj);
@@ -220,26 +219,24 @@ static void pre_start(scan_job sj) {
 //创建数据文件
 	sj_create_writer(sj);
 //创建缓冲区
-	sj->points = malloc_points(PNT_TYPE_POLAR, sj->height);
+	sj->points_xyz = malloc_points(PNT_TYPE_POLAR, sj->height);
 //创建色彩缓冲
 	gray_size = sj->width * sj->height;
-	sj->gray = (e_uint8*) malloc(gray_size);
+	sj->points_gray =  malloc_points(PNT_TYPE_GRAY, sj->height);
 
 	sj->slip_idx = 0;
 }
 
 static void scan_done(scan_job sj) {
 	if (sj->state == STATE_STOP) {
-		da_close(&sj->writer); //写入文件
-		//sj_save2image(sj->gray_dir, sj->gray, sj->height, sj->width, 1); //存储灰度图
-		sj_save2image_rotation(sj->gray_dir, sj->gray, sj->height, sj->width);
-		if (sj->points) {
-			free_points(sj->points);
-			sj->points = NULL;
+		dm_free(sj->writer); //写入文件
+		if (sj->points_xyz) {
+			free_points(sj->points_xyz);
+			sj->points_xyz = NULL;
 		}
-		if (sj->gray) {
-			free(sj->gray);
-			sj->gray = NULL;
+		if (sj->points_gray) {
+			free_points(sj->points_gray);
+			sj->points_gray = NULL;
 		}
 
 		sj->state = STATE_DONE;
@@ -381,6 +378,23 @@ static e_int32 sj_clean(scan_job sj) {
 	return E_OK;
 }
 
+static void print_config(scan_job sj) {
+	DMSG((STDOUT,"\t======================================================\n"));
+	DMSG((STDOUT,"\tLS300 V2.0 Config\n"));
+	DMSG((STDOUT,"\tTurntable:\n"));
+	DMSG((STDOUT,"\t\tSpeed:%u ms / step\n",(unsigned int)sj->speed_h));
+	DMSG((STDOUT,"\t\tAngle:%f - %f\n",sj->start_angle_h,sj->end_angle_h));
+	DMSG((STDOUT,"\tLaser Machine:\n"));
+	DMSG((STDOUT,"\t\tSpeed:%u Hz\n",(unsigned int)sj->speed_v));
+	DMSG((STDOUT,"\t\tResolution:%f\n",sj->resolution_v));
+	DMSG((STDOUT,"\t\tAngle:%f - %f\n",sj->start_angle_v[0],sj->end_angle_v[0]));
+	if (sj->active_sectors.left && sj->active_sectors.right)
+		DMSG((STDOUT,"\t\tAngle:%f - %f\n",sj->start_angle_v[1],sj->end_angle_v[1]));
+	DMSG((STDOUT,"\tOutput:\n"));
+	DMSG((STDOUT,"\t\tWidth:%u Height:%u\n",sj->width,sj->height));
+	DMSG((STDOUT,"\t======================================================\n"));
+}
+
 /**
  *\brief 设置扫描区域        
  *\param scan_job 定义了扫描任务。 
@@ -414,13 +428,14 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
 	sj->resolution_v = resolution_v;
 	sj->speed_h = speed_h;
 
-	if (sj->end_angle_v[0] >= 180) { //限制了,垂直角度为 -45~+90 度之间
-		sj->end_angle_v[0] = 180 - sj->resolution_v;
-	}
-
 	//挖个坑,先把第二个角度记下
 	sj->start_angle_v[1] = 360 - sj->end_angle_v[0];
 	sj->end_angle_v[1] = 360 - sj->start_angle_v[0];
+
+	if (sj->end_angle_v[0] >= 180) { //限制了,垂直角度为 -45~+90 度之间
+		sj->end_angle_v[0] = 180;
+		sj->start_angle_v[1] = 180 + sj->resolution_v;
+	}
 
 	//只会用到0号
 	if (sj->start_angle_h < 180 && sj->end_angle_h <= 180) //都在左边
@@ -458,13 +473,11 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
 	sj->pre_scan_angle =
 			STEP_TO_ANGLE(PRE_SCAN_WAIT_TIME / PULSE_SPEED_TO_STEP_TIME(sj->speed_h));
 
+	print_config(sj);
+
 	//提交配置到控制板
-	if (sj->start_angle_h < 180 && sj->end_angle_h > 180) //跨界情况细分
-		ret = hl_turntable_config(&sj->control, sj->speed_h, sj->start_angle_h - 180,
-									sj->end_angle_h + sj->pre_scan_angle - 180);
-	else
-		ret = hl_turntable_config(&sj->control, sj->speed_h, sj->start_angle_h,
-									sj->end_angle_h + sj->pre_scan_angle);
+	ret = hl_turntable_config(&sj->control, sj->speed_h, sj->start_angle_h,
+								sj->end_angle_h + sj->pre_scan_angle);
 	e_assert(ret>0, ret);
 
 	return E_OK;
@@ -494,17 +507,31 @@ static e_int32 sj_create_writer(scan_job sj) {
 	sprintf(sj->gray_dir, "%d-%d-%d-%d-%d-%d.jpg", sys_time.year,
 			sys_time.month, sys_time.day, sys_time.hour, sys_time.minute,
 			sys_time.second);
-	ret = da_open(&sj->writer, (e_uint8*) sj->data_file, sj->width, sj->height,
-					sj->active_sectors.right ? E_DWRITE : E_WRITE);
+	char *files[] = { sj->data_file, sj->gray_dir, "/tmp/test.sprite" };
+	sj->writer = dm_alloc(files, 3, sj->width, sj->height,
+							sj->active_sectors.right ? E_DWRITE : E_WRITE);
 	e_assert(ret>0, ret);
 	return E_OK;
+}
+
+static e_uint16 intensity_filter(e_uint32 echo) {
+//	if (echo < 70 || echo > 700) //反射强度过滤
+//							{
+//				echo = 0;
+//	}
+	return echo;
+}
+
+static e_uint8 gray_filter(e_uint32 echo) {
+	return (echo - 70) * 255.0 / 300.0;
+	return echo * 255.0 * 2 / 600.0;
 }
 
 static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 		e_uint32 data_num, e_int32 type) {
 //	unsigned int pnt_idx = 0;
 	unsigned int gray_idx = sj->slip_idx;
-	e_uint8* pgray;
+	point_gray_t* pgray;
 	point_polar_t *ppoint;
 
 	if (sj->slip_idx >= sj->width) {
@@ -516,9 +543,8 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 		gray_idx += sj->width / 2; //有左区,写右区时要跳过左区
 	}
 
-	ppoint = (point_polar_t*) &sj->points->mem;
-
-	pgray = &sj->gray[gray_idx * sj->height];
+	ppoint = (point_polar_t*) sj->points_xyz->mem;
+	pgray = (point_gray_t*) sj->points_gray->mem;
 
 //	if (data_num > sj->height) //点数个数多一个?不可能
 //			{
@@ -529,33 +555,33 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 //		DMSG((STDOUT,"#ERROR# 点数个数少一个?不可能 [[data_num <sj->height]] why?\n"));
 //	}
 
-	if (e_check(data_num != sj->height, "#ERROR# 点数个数与要求的不一致!\n")) {
+	if (e_check(data_num != sj->height && data_num+1 != sj->height, "#ERROR# 点数个数与要求的不一致!\n"))
+	{
+		DMSG((STDOUT,"#ERROR# 点数个数多一个?不可能 data_num[%u] sj->height[%u]\n",
+				(unsigned int)data_num,(unsigned int)sj->height));
 		return E_ERROR;
 	}
+//	if(data_num+1 == sj->height) data_num = sj->height;
 
-	if (!type)
+	if (type)
 	{
 		for (int k = data_num - 1; k >= 0; --k) {
 			ppoint->distance = pdata->range_values[data_idx + k];
 			ppoint->angle_h = pdata->h_angle;
-			ppoint->angle_v = pdata->scan_angles[data_idx + k] - 0.5 * k / (data_num - 1);
-			ppoint->intensity = 0;
-
-			if (pdata->echo_values[data_idx + k] >= 70
-					&& pdata->echo_values[data_idx + k] <= 700) //反射强度过滤
-							{
-				ppoint->intensity = pdata->echo_values[data_idx + k];
-			}
-
+			ppoint->angle_v = pdata->scan_angles[data_idx + k];
+			ppoint->intensity = intensity_filter(pdata->echo_values[data_idx + k]);
+			pgray->gray = gray_filter(pdata->echo_values[data_idx + k]);
 //			if (pnt_idx >= sj->height) //点数个数限制
 //					{
 //				DMSG((STDOUT,"#ERROR# FOUD pnt_idx >= sj->height\r\n"));
 //				break;
 //			}
-
-			(*pgray++) = (e_uint8) (pdata->echo_values[data_idx + k] * 255.0 / 630.0);
 //			pnt_idx++;
+			if (ppoint->distance <= 0.0000005) {
+				DMSG((STDOUT,"I"));
+			}
 			ppoint++;
+			pgray++;
 		} // end for
 	}
 	else
@@ -563,25 +589,20 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 		for (unsigned int k = 0; k < data_num; ++k) {
 			ppoint->distance = pdata->range_values[data_idx + k];
 			ppoint->angle_h = pdata->h_angle;
-			ppoint->angle_v = pdata->scan_angles[data_idx + k]
-					- 0.5 * (data_num - 1 - k) / (data_num - 1);
-			ppoint->intensity = 0;
-
-			if (pdata->echo_values[data_idx + k] >= 70
-					&& pdata->echo_values[data_idx + k] <= 700) //反射强度过滤
-							{
-				ppoint->intensity = pdata->echo_values[data_idx + k];
-			}
-
+			ppoint->angle_v = pdata->scan_angles[data_idx + k];
+			ppoint->intensity = intensity_filter(pdata->echo_values[data_idx + k]);
+			pgray->gray = gray_filter(pdata->echo_values[data_idx + k]);
 //			if (pnt_idx >= sj->height) //点数个数限制
 //					{
 //				DMSG((STDOUT,"#ERROR# FOUD pnt_idx >= sj->height\r\n"));
 //				break;
 //			}
-
-			(*pgray++) = (e_uint8) (pdata->echo_values[data_idx + k] * 255.0 / 630.0);
 //			pnt_idx++;
+			if (ppoint->distance <= 0.0000005) {
+				DMSG((STDOUT,"|"));
+			}
 			ppoint++;
+			pgray++;
 		} // end for
 	}
 //	if (pnt_idx < sj->height) //点数个数不够?
@@ -589,9 +610,11 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 //		DMSG((STDOUT,"#ERROR# type:%d,data_num:%u,FOUD pnt_idx[%u] < sj->height[%u]\r\n",
 //				type,(unsigned int)data_num,pnt_idx,(unsigned int)sj->height));
 //	}
+
 //if (!bPreScan)
 	{
-		da_append_points(&sj->writer, sj->points, sj->height, type);
+		dm_append_points(sj->writer, sj->points_xyz, sj->height, type);
+		dm_append_points(sj->writer, sj->points_gray, sj->height, type);
 	}
 
 	return E_OK;
@@ -602,18 +625,15 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 /************************************************************************/
 e_int32 sj_filter_data(scan_job sj, scan_data_t * pdata) {
 	e_assert(sj&&sj->state, E_ERROR_INVALID_HANDLER);
-
-	int data_idx = pdata->data_offsets[0];
-	int data_num = pdata->num_values[0];
+	int didx = 0;
 
 	if (sj->active_sectors.left) {
-		one_slip(sj, pdata, data_idx, data_num, 0);
-		data_idx = pdata->data_offsets[1];
-		data_num = pdata->num_values[1];
+		one_slip(sj, pdata, pdata->data_offsets[didx], pdata->num_values[didx], 0);
+		didx++;
 	}
 
 	if (sj->active_sectors.right) {
-		one_slip(sj, pdata, data_idx, data_num, 1);
+		one_slip(sj, pdata, pdata->data_offsets[didx], pdata->num_values[didx], 1);
 	}
 
 	sj->slip_idx++;

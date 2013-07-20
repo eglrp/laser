@@ -38,6 +38,7 @@
 #define HLS_API
 #endif
 
+#define UNORDERED 1
 
 typedef char               CHAR;
 

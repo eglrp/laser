@@ -25,13 +25,13 @@
 #define DEFAULT_SICK_MESSAGE_TIMEOUT                (e_uint32)(5e6)  ///< The max time to wait for a message reply (usecs)
 #define DEFAULT_SICK_CONNECT_TIMEOUT                (e_uint32)(1e6)  ///< The max time to wait before considering a connection attempt as failed (usecs)
 #define DEFAULT_SICK_BYTE_TIMEOUT         (35000)  ///< Max allowable time between consecutive bytes
-#define DEFAULT_SICK_MSG_RECV_SLEEP 		(100*1000) //100 MS
+#define DEFAULT_SICK_MSG_RECV_SLEEP 		(1000) //1 MS
 #define DEFAULT_SICK_NUM_SCAN_PROFILES  (0)  ///< Setting this value to 0 will tell the Sick LD to stream measurements when measurement data is requested (NOTE: A profile is a single scans worth of range measurements)
 #define DEFAULT_SICK_SIGNAL_SET         (0)  ///< Default Sick signal configuration
 /*消息相关定义*/
 #define SICK_LD_MSG_HEADER_LEN             (8)  ///< Sick LD message header length in bytes
 //#define SICK_LD_MSG_PAYLOAD_MAX_LEN     (5816)  ///< Sick LD maximum payload length
-#define SICK_LD_MSG_PAYLOAD_MAX_LEN     (14400)  ///< Sick LD maximum payload length
+#define SICK_LD_MSG_PAYLOAD_MAX_LEN     (11578) //(14400)  ///< Sick LD maximum payload length
 #define SICK_LD_MSG_TRAILER_LEN            (1)  ///< Sick LD length of the message trailer
 /**
  * \def SWAP_VALUES(x,y,t)
@@ -215,7 +215,10 @@ static const e_float64 SICK_DEGREES_PER_MOTOR_STEP = 0.0625; ///< Each odometer 
 /**
  * \struct sick_ld_config_global_tag
  * \brief A structure to aggregate the data used to configure the
- *        Sick LD global parameter values.
+ *        Sick LD global parameter value	if (sj->start_angle_h < 180 && sj->end_angle_h > 180) //跨界情况细分
+		ret = hl_turntable_config(&sj->control, sj->speed_h, sj->start_angle_h - 180,
+									sj->end_angle_h + sj->pre_scan_angle - 180);
+	elses.
  */
 /**
  * \typedef sick_ld_config_global_t

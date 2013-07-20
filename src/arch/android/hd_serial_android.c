@@ -1,3 +1,5 @@
+#include <arch/hd_serial_api.h>
+
 #ifdef ANDROID_OS
 
 #include <fcntl.h>
@@ -5,8 +7,6 @@
 #include <unistd.h>
 #include <termios.h>
 #include <string.h>
-
-#include <arch/hd_serial_api.h>
 
 static char serials[30][16] =
 		{ "/dev/ttyS0", "/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4",

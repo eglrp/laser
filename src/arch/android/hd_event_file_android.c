@@ -4,9 +4,10 @@
  * author: Joy.you
  */
 
+#include <arch/hd_event_api.h>
+
 #ifdef ANDROID_OS
 
-#include <arch/hd_event_api.h>
 #include <arch/hd_thread_api.h>
 
 #include "../internal/hd_inter_event.h"

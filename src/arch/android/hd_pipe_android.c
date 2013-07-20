@@ -1,3 +1,6 @@
+
+#include <arch/hd_pipe_api.h>
+
 #ifdef ANDROID_OS
 
 #include <fcntl.h>
@@ -6,8 +9,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-
-#include <arch/hd_pipe_api.h>
 
 struct pipe_handle_t
 {

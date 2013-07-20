@@ -52,7 +52,16 @@ e_int32 DEV_EXPORT sj_stop(scan_job sj);
 e_int32 DEV_EXPORT sj_wait(scan_job sj);
 
 /************************************************************************
- * 设置扫描速度范围参数
+ *\brief 设置扫描速度范围参数
+ *\param scan_job 定义了扫描任务。
+ *\param speed_h 定义了水平速度。
+ *\param start_angle_h 定义了水平开始角度。
+ *\param end_angle_h 定义了水平结束角度。
+ *\param speed_v 定义了垂直速度。
+ *\param resolution_v 定义了垂直分辨率。
+ *\param active_sector_start_angles 定义了扫描区域开始角度。
+ *\param active_sector_stop_angles 定义了扫描区域结束角度。
+ *\retval E_OK 表示成功。
  ************************************************************************/
 e_int32 DEV_EXPORT sj_config(scan_job sj, e_uint32 speed_h_delay,
 		const e_float64 start_angle_h, const e_float64 end_angle_h,

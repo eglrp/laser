@@ -41,6 +41,7 @@ e_int32 DEV_EXPORT mm_start(msg_monitor_t *mm);
 e_int32 DEV_EXPORT mm_stop(msg_monitor_t *mm);
 //not thread safe
 fsocket_t* DEV_EXPORT mm_create_socket(msg_monitor_t *mm, e_uint8* name);
+e_int32 DEV_EXPORT mm_destroy_socket(msg_monitor_t *mm, fsocket_t* fs);
 
 #ifdef __cplusplus
 }

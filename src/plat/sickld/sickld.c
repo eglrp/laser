@@ -1336,7 +1336,7 @@ static e_int32 sld_recv_message(sickld_t *sick, sick_message_t *sick_message,
 	while (ret <= 0)
 	{
 		/* Sleep a little bit */
-		Delay(DEFAULT_SICK_MSG_RECV_SLEEP / 1000); //us to ms
+		Delay(DEFAULT_SICK_MSG_RECV_SLEEP/1000); //us to ms
 		/* Check whether the allowed time has expired */
 		end_time = GetTickCount();
 		len = sld_compute_elapsed_time(beg_time, end_time);
@@ -3040,6 +3040,9 @@ e_int32 sld_get_next_message_from_datastream(sickld_t *sick,
 	/* Read the packet payload */
 	ret = sld_read_bytes(sick, &message_buffer[8], payload_length,
 							DEFAULT_SICK_BYTE_TIMEOUT);
+	if(ret <=0){
+		DMSG((STDOUT,"error.\n"));
+	}
 	e_assert((ret>0), ret);
 
 	/* Read the checksum */
@@ -3062,7 +3065,12 @@ e_int32 sld_get_next_message_from_datastream(sickld_t *sick,
 
 	/* Verify the checksum is correct (this is probably unnecessary since we are using TCP/IP) */
 	ret = skm_get_checksum(sick_message);
-	e_assert((ret==checksum), ret);
+
+	if(ret != checksum) {
+		DMSG((STDOUT,"ret = %d,checksum = %d\n",ret,checksum));
+	}
+
+	//e_assert((ret==checksum), E_ERROR_IO);
 
 	return E_OK;
 }

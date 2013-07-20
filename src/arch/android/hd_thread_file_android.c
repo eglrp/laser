@@ -6,11 +6,12 @@
  * NOTE: link to android bionic libc which contains librt and libpthread
  * which is different from traditional unix-like oses
  */
+#include <arch/hd_thread_api.h>
 
 #ifdef ANDROID_OS
 #include <arch/hd_timer_api.h>
 #include <arch/hd_event_api.h>
-#include <arch/hd_thread_api.h>
+
 #include "../internal/hd_inter_thread.h"
 
 #include <pthread.h>	/* posix threads & posix mutexes */
