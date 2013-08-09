@@ -185,7 +185,7 @@ e_int32 hl_open_socket(laser_control_t *lc, e_uint8 *ip, e_uint32 port)
 	ret = hl_push_state(lc, CONTROL_REQUEST_OPEN);
 	e_assert(ret, E_ERROR_INVALID_STATUS);
 
-	ret = sc_open_socket(&lc->serial_port, ip, port);
+	ret = sc_open_socket(&lc->serial_port, ip, port,E_SOCKET_TCP);
 	e_assert(ret>0, ret);
 	ret = sc_connect(&lc->serial_port);
 	e_assert(ret>0, ret);
@@ -216,7 +216,11 @@ e_int32 hl_close(laser_control_t *lc)
 {
 	int ret;
 	ret = hl_push_state(lc, CONTROL_REQUEST_CLOSE);
-	e_assert(ret, E_ERROR_INVALID_STATUS);
+	if(e_failed(ret)){
+		DMSG((STDOUT,"Current Status:%d",lc->state));
+		return E_ERROR_INVALID_STATUS;
+	}
+
 	mm_stop(&lc->monitor);
 	sc_close(&lc->serial_port);
 	memset(lc, 0, sizeof(laser_control_t));
@@ -274,7 +278,7 @@ e_int32 hl_turntable_stop(laser_control_t *lc)
 
 	ret = fsocket_command(lc->fs_turntable, STOP_WORK, sizeof(STOP_WORK),
 							HALT_MSG, sizeof(HALT_MSG), TIMEOUT_TURNTABLE);
-	e_assert(ret>0, ret);
+	//e_assert(ret>0, ret); //这里板子没有返回信息，后面要修改板子通讯，返回成功停止的信息
 
 	hl_pop_state(lc, CONTROL_REQUEST_WORK_TURN);
 
@@ -346,6 +350,28 @@ e_int32 hl_turntable_turn(laser_control_t *lc, e_float64 angle)
 	e_assert(ret, E_ERROR_INVALID_STATUS);
 
 	ret = inter_turn(lc, lc->step_delay, angle);
+
+	hl_pop_state(lc, CONTROL_REQUEST_WORK_TURN);
+	return ret;
+}
+
+
+static e_int32 inter_check(laser_control_t *lc)
+{
+	e_int32 ret;
+	ret = fsocket_command(lc->fs_turntable, CHECK_STATUS, sizeof(CHECK_STATUS),
+	                      CHECK_SUCCESS, sizeof(CHECK_SUCCESS), TIMEOUT_TURNTABLE/10); //3分钟最长等待
+	return ret;
+}
+
+
+e_int32 hl_turntable_check(laser_control_t *lc)
+{
+	e_int32 ret;
+	ret = hl_push_state(lc, CONTROL_REQUEST_WORK_TURN);
+	e_assert(ret, E_ERROR_INVALID_STATUS);
+
+	ret = inter_check(lc);
 
 	hl_pop_state(lc, CONTROL_REQUEST_WORK_TURN);
 	return ret;
@@ -511,7 +537,7 @@ static e_int32 inter_get_dip(laser_control_t *lc, float *v1, float *v2)
 }
 
 //获取倾斜度
-e_int32 hl_get_dip(laser_control_t *lc, angle_t* angle)
+e_int32 hl_get_tilt(laser_control_t *lc, angle_t* angle)
 {
 	float value[2] =
 			{ 0 };
@@ -617,7 +643,7 @@ static e_int32 inter_searchzero(laser_control_t *lc)
 	return E_OK;
 }
 //以最快速度调整到指定水平范围起始角
-e_int32 hl_SearchZero(laser_control_t *lc)
+e_int32 hl_search_zero(laser_control_t *lc)
 {
 	e_int32 ret;
 	ret = hl_push_state(lc, CONTROL_REQUEST_WORK_TURN);
@@ -653,4 +679,3 @@ e_int32 hl_get_info(laser_control_t *lc, e_uint32 idx, e_uint8* buffer,
 	e_assert(ret>0, E_ERROR);
 	return E_OK;
 }
-

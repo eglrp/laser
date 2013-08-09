@@ -1,4 +1,5 @@
 //funstack.c
+#include "../hd_test_config.h"
 #ifdef TEST_STACK
 
 #define _GNU_SOURCE

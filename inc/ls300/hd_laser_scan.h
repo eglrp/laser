@@ -16,6 +16,7 @@
 
 /* Dependencies */
 #include <arch/hd_plat_base.h>
+#include <ls300/hd_laser_control.h>
 
 
 /*结构体定义*/
@@ -31,7 +32,7 @@ extern "C"
 /* 与扫描仪建立连接，并初始化扫描参数信息                                                                    */
 /************************************************************************/
 e_int32 DEV_EXPORT sj_create(scan_job* sj);
-
+e_int32 DEV_EXPORT sj_create_ex(scan_job* sj,laser_control_t *control,char* ip,int port);
 /************************************************************************/
 /* 与扫描仪断开连接                                                               */
 /************************************************************************/
@@ -72,7 +73,7 @@ e_int32 DEV_EXPORT sj_config(scan_job sj, e_uint32 speed_h_delay,
  * 设置点云数据存储目录,灰度图存储目录
  ************************************************************************/
 e_int32 DEV_EXPORT sj_set_data_dir(scan_job sj, char* ptDir,
-		e_uint8 *grayDir);
+		char *grayDir);
 
 #ifdef __cplusplus
 }

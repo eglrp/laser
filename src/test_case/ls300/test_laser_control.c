@@ -11,6 +11,7 @@
  *
  */
 
+#include "../hd_test_config.h"
 #if TEST_CONTROL
 #include <ls300/hd_laser_control.h>
 

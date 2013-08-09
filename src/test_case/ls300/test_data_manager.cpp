@@ -11,10 +11,10 @@
  *
  */
 
-#include <ls300/hd_data_manager.h>
 
+#include "../hd_test_config.h"
 #if TEST_DATA_MANAGER
-
+#include <ls300/hd_data_manager.h>
 #include <stdio.h>
 #include <math.h>
 #include <comm/hd_point_type.h>
@@ -61,15 +61,15 @@ int main()
 //test2
 	point_array = malloc_points(PNT_TYPE_GRAY,SIZE);
 	points_gray = (point_gray_t*)point_array->mem;
-
-	for (int i = 0; i < SIZE; i++)
-		dm_append_points(dm, point_array, SIZE, 0);
-
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = (128 + 255 / SIZE * i) % 255;
-
-	for (int i = 0; i < SIZE; i++)
-		dm_append_points(dm, point_array, SIZE, 1);
+//
+//	for (int i = 0; i < SIZE; i++)
+//		dm_append_points(dm, point_array, SIZE, 0);
+//
+//	for (int i = 0; i < SIZE; i++)
+//		points_gray[i].gray = (128 + 255 / SIZE * i) % 255;
+//
+//	for (int i = 0; i < SIZE; i++)
+//		dm_append_points(dm, point_array, SIZE, 1);
 
 ////test3
 //	for (int i = 0; i < SIZE; i++)
@@ -85,17 +85,17 @@ int main()
 //		dm_write_row(dm, SIZE - i - 1, point_array, 1);
 
 ////test4
-//	for (int i = 0; i < SIZE; i++)
-//		points_gray[i].gray = 'A';
-//
-//	for (int i = 0; i < SIZE; i++)
-//		dm_write_column(dm, i, point_array, 0);
-//
-//	for (int i = 0; i < SIZE; i++)
-//		points_gray[i].gray = 'B';
-//
-//	for (int i = 0; i < SIZE; i++)
-//		dm_write_column(dm, SIZE - i -1, point_array, 1);
+	for (int i = 0; i < SIZE; i++)
+		points_gray[i].gray = 128;
+
+	for (int i = 0; i < SIZE; i++)
+		dm_write_column(dm, i, point_array, 0);
+
+	for (int i = 0; i < SIZE; i++)
+		points_gray[i].gray = 255;
+
+	for (int i = 0; i < SIZE; i++)
+		dm_write_column(dm, SIZE - i -1, point_array, 1);
 
 
 	free_points(point_array);

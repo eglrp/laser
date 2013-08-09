@@ -15,6 +15,8 @@
 #include <sickld/sickld.h>
 #include <arch/hd_timer_api.h>
 
+#define FAST_SICK_RECV 1
+
 static e_float64 sld_get_scan_resolution(sickld_t *sick);
 static e_int32 sld_sync_driver_with_sick(sickld_t *sick);
 static e_int32 sld_sort_scan_areas(e_float64 * const sector_start_angles,
@@ -97,7 +99,7 @@ e_int32 sld_create(sickld_t **sickld, char* ip, e_uint16 port)
 	e_assert(sick, E_ERROR_BAD_ALLOCATE);
 	memset(sick, 0, sizeof(sickld_t));
 
-	ret = sc_open_socket(&sick->sick_connect, ip, port);
+	ret = sc_open_socket(&sick->sick_connect, ip, port,E_SOCKET_TCP);
 	e_assert(ret>0, ret);
 	ret = sc_connect(&sick->sick_connect);
 	e_assert(ret>0, ret);
@@ -1336,7 +1338,7 @@ static e_int32 sld_recv_message(sickld_t *sick, sick_message_t *sick_message,
 	while (ret <= 0)
 	{
 		/* Sleep a little bit */
-		Delay(DEFAULT_SICK_MSG_RECV_SLEEP/1000); //us to ms
+		Delay(DEFAULT_SICK_MSG_RECV_SLEEP / 1000); //us to ms
 		/* Check whether the allowed time has expired */
 		end_time = GetTickCount();
 		len = sld_compute_elapsed_time(beg_time, end_time);
@@ -1464,7 +1466,7 @@ static e_int32 sld_send_message_and_getreply_ex(sickld_t *sick,
 			if (e_check(i>=num_tries-1,"Attempted max number of tries w/o failed!\r\n"))
 				return ret;
 			/* Display the number of tries remaining! */
-			DMSG( (STDOUT,"%d tries remaining",(int)(num_tries - i - 1)));
+			DMSG((STDOUT,"%d tries remaining",(int)(num_tries - i - 1)));
 		}
 		else
 		{
@@ -1502,7 +1504,7 @@ static e_int32 sld_send_message_and_getreply(sickld_t *sick,
 	/* Send message and get reply using full support method */
 	ret =
 			sld_send_message_and_getreply_ex(sick, send_message, recv_message,
-												byte_sequence, 2, 0, DEFAULT_SICK_MESSAGE_TIMEOUT, 1);
+			             byte_sequence, 2, 0, DEFAULT_SICK_MESSAGE_TIMEOUT, 1);
 	e_assert(ret>0, ret);
 
 	return E_OK;
@@ -2946,6 +2948,7 @@ static e_int32 sld_read_bytes(sickld_t *sick, e_uint8 * const dest_buffer,
 	/* Some helpful variables */
 	int total_num_bytes_read = 0;
 	e_int32 ret = 0;
+
 //	DMSG((STDOUT,"+++++++++++sld_read_bytes total_num_bytes_read=%d num_bytes_to_read=%d",
 //			total_num_bytes_read, num_bytes_to_read));
 	/* Attempt to fetch the bytes */
@@ -2968,11 +2971,18 @@ static e_int32 sld_read_bytes(sickld_t *sick, e_uint8 * const dest_buffer,
 		 *       the file descriptor set only contains the sick device fd,
 		 *       it likely unnecessary to use FD_ISSET
 		 */
+#if FAST_SICK_RECV
 		ret = sc_recv(&sick->sick_connect, &dest_buffer[total_num_bytes_read],
-						1);
+						num_bytes_to_read - total_num_bytes_read);
+		e_assert((ret >0), E_ERROR_IO);
+		total_num_bytes_read += ret;
+#else
+		ret = sc_recv(&sick->sick_connect, &dest_buffer[total_num_bytes_read],
+				1);
 		e_assert((ret == 1), E_ERROR_IO);
 
 		total_num_bytes_read++;
+#endif
 	}
 
 //	DMSG((STDOUT,"+++++++++++sld_read_bytes recv data len:%d",total_num_bytes_read));
@@ -3040,9 +3050,6 @@ e_int32 sld_get_next_message_from_datastream(sickld_t *sick,
 	/* Read the packet payload */
 	ret = sld_read_bytes(sick, &message_buffer[8], payload_length,
 							DEFAULT_SICK_BYTE_TIMEOUT);
-	if(ret <=0){
-		DMSG((STDOUT,"error.\n"));
-	}
 	e_assert((ret>0), ret);
 
 	/* Read the checksum */
@@ -3066,7 +3073,7 @@ e_int32 sld_get_next_message_from_datastream(sickld_t *sick,
 	/* Verify the checksum is correct (this is probably unnecessary since we are using TCP/IP) */
 	ret = skm_get_checksum(sick_message);
 
-	if(ret != checksum) {
+	if (ret != checksum) {
 		DMSG((STDOUT,"ret = %d,checksum = %d\n",ret,checksum));
 	}
 

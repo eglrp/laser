@@ -11,6 +11,7 @@
  *
  */
 
+#include "../hd_test_config.h"
 #if TEST_POOL
 #include "hd_scan_data_pool.h"
 #include <hd_thread_api.h>

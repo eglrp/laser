@@ -24,13 +24,14 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-
 #define SOCKET_ERROR -1
 
 static struct sigaction sa_old =
 		{ };
 
 static volatile int is_inited = 0;
+static int make_unix_domain_addr(const char* name, struct sockaddr_un* pAddr,
+		socklen_t* pSockLen);
 
 void Socket_Init()
 {
@@ -74,13 +75,16 @@ e_int32 Socket_Open(socket_t **socket_ptr, const char *socket_addr,
 	/*创建服务器端套接字--IPv4协议*/
 	switch (type)
 	{
-	case E_TCP:
+	case E_SOCKET_TCP:
 		/*面向连接通信，TCP协议*/
 		sockfd = socket(PF_INET, SOCK_STREAM, 0);
 		break;
-	case E_UDP:
+	case E_SOCKET_UDP:
 		/*无连接，UDP协议*/
 		sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+		break;
+	case E_SOCKET_NAME:
+		sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
 		break;
 	}
 	/*check sockfd*/
@@ -155,7 +159,7 @@ e_int32 Socket_Ioctrl(socket_t *socket, e_int32 type)
 e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 {
 	int sockfd, ret;
-	fd_set inputs, checkfds,*readfds = NULL, *writefds = NULL;
+	fd_set inputs, checkfds, *readfds = NULL, *writefds = NULL;
 	struct timeval timeout;
 
 	e_assert((socket && socket->state), E_ERROR);
@@ -179,8 +183,8 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 		return E_ERROR_INVALID_PARAMETER;
 	}
 
-	for(;;)
-	{
+	for (;;)
+			{
 		checkfds = inputs;
 		/*如果参数timeout设为NULL则表示select（）没有timeout
 		 执行成功则返回文件描述词状态已改变的个数，如果返回0代表在描述词状态改变前已超过timeout时间，
@@ -193,8 +197,8 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 		 */
 		if (timeout_usec > 0)
 				{
-			timeout.tv_sec = (long) (timeout_usec / (1000*1000));
-			timeout.tv_usec = (long) (timeout_usec % (1000*1000));
+			timeout.tv_sec = (long) (timeout_usec / (1000 * 1000));
+			timeout.tv_usec = (long) (timeout_usec % (1000 * 1000));
 			ret = select(sockfd + 1, readfds, writefds, (fd_set *) 0,
 							&timeout);
 		}
@@ -237,27 +241,39 @@ e_int32 Socket_Select(socket_t *socket, e_int32 type, e_int32 timeout_usec)
 e_int32 Socket_Bind(socket_t *socket)
 {
 	int sockfd;
-	int ret;
+	int ret, sockLen;
 	struct sockaddr_in peer_address;
+	struct sockaddr_un sockAddr;
 
 	e_assert((socket && socket->state), E_ERROR);
 
 	sockfd = (int) socket->priv;
 
-	peer_address.sin_family = AF_INET;
-
-	/*监听的IP可以为空*/
-	if (strlen(socket->ip_address) == 0)
-		peer_address.sin_addr.s_addr = htonl(INADDR_ANY);
-	else
+	switch (socket->type)
 	{
-		ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
-		e_assert(ret, E_ERROR_INVALID_ADDRESS);
+	case E_SOCKET_TCP:
+		case E_SOCKET_UDP:
+		/*监听的IP可以为空*/
+		if (strlen(socket->ip_address) == 0)
+			peer_address.sin_addr.s_addr = htonl(INADDR_ANY);
+		else
+		{
+			ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
+			e_assert(ret, E_ERROR_INVALID_ADDRESS);
+		}
+
+		peer_address.sin_port = htons(socket->port);
+		ret = bind(sockfd, (struct sockaddr *) &peer_address,
+					sizeof(struct sockaddr_in));
+		peer_address.sin_family = AF_INET;
+		break;
+	case E_SOCKET_NAME:
+		if (!make_unix_domain_addr(socket->ip_address, &sockAddr, &sockLen))
+			return E_ERROR_IO;
+		ret = bind(sockfd, (const struct sockaddr*) &sockAddr, sockLen);
+		break;
 	}
 
-	peer_address.sin_port = htons(socket->port);
-	ret = bind(sockfd, (struct sockaddr *) &peer_address,
-				sizeof(struct sockaddr_in));
 	e_assert((ret != SOCKET_ERROR), E_ERROR_IO);
 	return E_OK;
 }
@@ -277,19 +293,36 @@ e_int32 Socket_Listen(socket_t *socket)
 
 e_int32 Socket_Connect(socket_t *socket)
 {
-	int sockfd;
+	int sockfd, sockLen;
 	int ret;
 	struct sockaddr_in peer_address;
+	struct sockaddr_un sockAddr;
+	unsigned long ul = 1;
+
 	e_assert((socket && socket->state), E_ERROR);
 	sockfd = (int) socket->priv;
-	peer_address.sin_family = AF_INET;
-	ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
-	e_assert(ret, E_ERROR_INVALID_ADDRESS);
-	peer_address.sin_port = htons(socket->port);
-	unsigned long ul = 1;
+
 	ioctl(sockfd, FIONBIO, &ul); //设置为非阻塞模式
-	ret = connect(sockfd, (struct sockaddr *) &peer_address,
-					sizeof(struct sockaddr));
+
+	switch (socket->type)
+	{
+	case E_SOCKET_TCP:
+		case E_SOCKET_UDP:
+		peer_address.sin_family = AF_INET;
+		ret = inet_aton(socket->ip_address, &peer_address.sin_addr); // store IP in antelope
+		e_assert(ret, E_ERROR_INVALID_ADDRESS);
+		peer_address.sin_port = htons(socket->port);
+
+		ret = connect(sockfd, (struct sockaddr *) &peer_address,
+						sizeof(struct sockaddr));
+		break;
+	case E_SOCKET_NAME:
+		if (!make_unix_domain_addr(socket->ip_address, &sockAddr, &sockLen))
+			return E_ERROR_IO;
+		ret = connect(sockfd, (const struct sockaddr*) &sockAddr, sockLen);
+		break;
+	}
+
 	if (ret == -1)
 			{
 		fd_set set;
@@ -366,6 +399,8 @@ e_int32 Socket_Accept(socket_t *socket, socket_t **socket_c)
 	return E_OK;
 }
 
+//#define CONNECT_STAGE 0
+
 //  read/write socket data
 e_int32 Socket_Recv(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
 {
@@ -394,20 +429,24 @@ e_int32 Socket_Recv(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
 	 */
 
 	//接收信息
+#if !defined(CONNECT_STAGE)
+	byteRecvied = recv(sockfd, buffer, blen, 0);
+#else
 	while (byteRecvied != blen)
 	{
 		/* get bytes from port */
 		byteCount = recv(sockfd, buffer + byteRecvied, blen - byteRecvied, 0);
 		if (byteCount <= 0)
-			break;
+		break;
 		byteRecvied += byteCount;
 
 		/* if no bytes read timeout return byteRecvied */
 		if (byteCount == 0)
-				{
+		{
 			break;
 		}
 	}
+#endif
 	return byteRecvied;
 }
 
@@ -441,21 +480,38 @@ e_int32 Socket_Send(socket_t *socket, e_uint8 *buffer, e_uint32 blen)
 	 断开的话，调用send的进程会接收到一个SIGPIPE信号，进程对该信号的默认处理是进程终止。
 	 */
 	//发送信息
+#if !defined(CONNECT_STAGE)
+	byteSend = send(sockfd, buffer, blen, 0);
+#else
 	while (byteSend != blen)
 	{
 		/* get bytes from port */
 		byteCount = send(sockfd, buffer + byteSend, blen - byteSend, 0);
 		if (byteCount <= 0)
-			break;
+		break;
 		byteSend += byteCount;
 
 		/* if no bytes send return byteSend */
 		if (byteCount == 0)
-				{
+		{
 			break;
 		}
 	}
+#endif
 	return byteSend;
+}
+
+static int make_unix_domain_addr(const char* name, struct sockaddr_un* pAddr,
+		socklen_t* pSockLen)
+{
+	int nameLen = strlen(name);
+	if (nameLen >= (int) sizeof(pAddr->sun_path) - 1) /* too long? */
+		return 0;
+	pAddr->sun_path[0] = '\0'; /* abstract namespace */
+	strcpy(pAddr->sun_path + 1, name);
+	pAddr->sun_family = AF_LOCAL;
+	*pSockLen = 1 + nameLen + offsetof(struct sockaddr_un, sun_path);
+	return 1;
 }
 
 #endif  /*ANDROID_OS*/

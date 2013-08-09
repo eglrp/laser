@@ -21,6 +21,9 @@
 #include <unistd.h>	/* posix definitions */
 #include <sched.h>	/* pthread priority setting */
 #include <sys/time.h>
+#include <time.h>
+#include <limits.h>
+#include <errno.h>
 
 #ifdef DMSG
 #undef DMSG
@@ -618,5 +621,56 @@ void cond_destroy(condition_t *cond) {
 	BZERO(cond, condition_t);
 	DMSG((STDOUT, "destroy cond successfully\n"));
 }
+
+
+
+#if !defined(LINUX)
+
+/* return difference in milliseconds */
+static long long diff(const struct timespec *start, const struct timespec *end);
+
+int pthread_mutex_timedlock(pthread_mutex_t *mutex,struct timespec *abstime)
+{
+	int rc = 0;
+	long long msecs = 0;
+	struct timespec curtime;
+
+	if (abstime == NULL)
+		return EINVAL;
+
+	if ((abstime->tv_nsec < 0) || (abstime->tv_nsec >= 1000000000))
+		return EINVAL;
+
+	/* CLOCK_REALTIME is used here because it's required by IEEE Std
+	 * 1003.1, 2004 Edition */
+	if (clock_gettime(CLOCK_REALTIME, &curtime) != 0)
+		return errno;
+
+	msecs = diff(&curtime, abstime);
+	if (msecs <= 0)
+		return ETIMEDOUT;
+	if (msecs > UINT_MAX)
+		return EINVAL;
+
+	/* pthread_mutex_lock_timeout_np returns EBUSY when timeout expires
+	 * but POSIX specifies ETIMEDOUT return value */
+	rc = pthread_mutex_lock_timeout_np(mutex, (unsigned) msecs);
+	if (rc == EBUSY)
+		rc = ETIMEDOUT;
+
+	return rc;
+}
+
+long long diff(const struct timespec *s, const struct timespec *e)
+{
+	long long start = ((long long) s->tv_sec * 1000LL)
+			+ ((long long) s->tv_nsec / 1000000);
+	long long end = ((long long) e->tv_sec * 1000LL)
+			+ ((long long) e->tv_nsec / 1000000);
+
+	return end - start;
+}
+#endif
+
 
 #endif /* ANDROID_OS */

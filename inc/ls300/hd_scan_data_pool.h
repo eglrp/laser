@@ -57,7 +57,7 @@ extern "C" {
 
 void DEV_EXPORT pool_init(scan_pool_t* pool);
 void DEV_EXPORT pool_cancle(scan_pool_t* pool);
-void DEV_EXPORT pool_leave(scan_pool_t* pool);
+//void DEV_EXPORT pool_leave(scan_pool_t* pool);
 void DEV_EXPORT pool_destroy(scan_pool_t* pool);
 e_int32 DEV_EXPORT pool_read(scan_pool_t* pool, scan_data_t *data);
 e_int32 DEV_EXPORT pool_write(scan_pool_t* pool, scan_data_t *data);

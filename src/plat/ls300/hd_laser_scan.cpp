@@ -26,7 +26,7 @@ extern "C" {
 
 struct scan_job_t {
 	sickld_t *sick;
-	laser_control_t control;
+	laser_control_t* control;
 	scan_pool_t pool;
 	ethread_t *thread_read;
 	ethread_t *thread_write;
@@ -49,21 +49,31 @@ struct scan_job_t {
 	} active_sectors;
 
 	//文件读写
-	char data_file[MAX_PATH_LEN];
-	data_manager_t* writer;
+	char data_dir[MAX_PATH_LEN];
 	char gray_dir[MAX_PATH_LEN];
+
+	char data_file[MAX_PATH_LEN];
+	char gray_file[MAX_PATH_LEN];
+	char pipe_file[MAX_PATH_LEN];
+	data_manager_t* writer;
 	point_t *points_xyz;
 	point_t *points_gray;
 
 	//临时记录
+	e_float32 angle_dif_per_cloumn;
+	e_float32 angle_dif_per_degree;
 	e_uint32 slip_idx;
 	e_float32 pre_scan_angle;
 
 	volatile e_int32 state;
 };
 
-#define PRE_SCAN_WAIT_TIME  0 //us
+#define PRE_SCAN_WAIT_TIME  10000000 //us
 #define JPEG_QUALITY 100     //它的大小决定jpg的质量好坏
+#define HACK_INVALID_DATA 1
+//#define HACK_PNT_ANGLE_H 1
+#define HACK_SLIP_ANGLE 1
+
 enum {
 	STATE_NONE = 0,
 	STATE_INIT = 1,
@@ -74,56 +84,78 @@ enum {
 static e_int32 sj_clean(scan_job sj);
 static e_int32 sj_create_writer(scan_job sj);
 static void scan_done(scan_job sj);
-int sj_save2image(char *filename, unsigned char *bits, int width, int height,
-		int depth);
-static int sj_save2image_rotation(char *filename, unsigned char *bits, int width,
-		int height);
+//int sj_save2image(char *filename, unsigned char *bits, int width, int height,
+//		int depth);
+//static int sj_save2image_rotation(char *filename, unsigned char *bits, int width,
+//		int height);
 /************************************************************************
  *         根据当前水平角度范围和垂直角度范围，得到每一圈实际扫描数据和灰度图
  ************************************************************************/
 static e_int32 sj_filter_data(scan_job sj, scan_data_t * pdata);
 
 static void write_pool_data_routine(void* data) {
-	e_int32 ret;
+	e_int32 ret, flag = 1;
+	e_float32 angle_dif, started_angle; //记录起始位置，保证180度是对齐的
 	scan_job sj = (scan_job) data;
 	scan_data_t sdata = { 0 };
 	DMSG((STDOUT,"scan job:write_data_routine start.\r\n"));
 
-	//等待扫描仪就位,会有准备工作开始
+	angle_dif = sj->angle_dif_per_cloumn;
+
+//等待扫描仪就位,会有准备工作开始
 	do {
-		DMSG((STDOUT,"sld_get_measurements sick is not in target position: delay and retry.\r\n"));
-		Delay(1000 / sj->speed_v); //等垂直一圈的时间
-		sdata.h_angle = hl_turntable_get_angle(&sj->control) - sj->pre_scan_angle;
-		DMSG((STDOUT,"control trun to start angle left  %f",sdata.h_angle));
-	} while (sj->state == STATE_START
-			&& (sdata.h_angle < -0.5));
-
-	DMSG((STDOUT,"sld_get_measurements sick is in target position!\r\n start get data.\r\n"));
-
-	while (sj->state == STATE_START) {
-		//1先读取水平方向角度
-		sdata.h_angle = hl_turntable_get_angle(&sj->control) - sj->pre_scan_angle
+		DMSG((STDOUT,"sld_get_measurements sick is not in target position: delay and retry. angle_dif_per_cloumn=%f\r\n",angle_dif));
+		sdata.h_angle = hl_turntable_get_angle(sj->control) - sj->pre_scan_angle
 				+ sj->start_angle_h;
-
-		if (sdata.h_angle > sj->end_angle_h + 0.5) {
-			DMSG((STDOUT,"sld_get_measurements sick is out of target position again!\r\n stop get data.\r\n"));
-			sj->state = STATE_STOP;
-			break;
-		}
-
+		DMSG((STDOUT,"control trun to start angle left  %f\n",sdata.h_angle));
 		ret =
 				sld_get_measurements(sj->sick, sdata.range_values,
 										sdata.echo_values, sdata.scan_angles, sdata.num_values,
 										sdata.sector_ids, sdata.data_offsets, NULL, NULL, NULL, NULL,
 										NULL);
-		if (ret <= 0) {
+
+		if (sdata.h_angle > sj->start_angle_h - angle_dif) {
+//			if (ret > 0) {
+//				DMSG((STDOUT,"sld_get_measurements sick is in target position!\r\n Start to get data.\r\n"));
+//				DMSG((STDOUT,"\rWRITE TO FILE: %f end: %f\n",sdata.h_angle,sj->end_angle_h));
+//				pool_write(&sj->pool, &sdata);
+//			}
+//			started_angle = sdata.h_angle;
+			break;
+		}
+	} while (sj->state == STATE_START);
+
+	while (sj->state == STATE_START) {
+
+		//1先读取水平方向角度
+		sdata.h_angle = hl_turntable_get_angle(sj->control) - sj->pre_scan_angle
+				+ sj->start_angle_h;
+		if (flag) {
+			started_angle = sdata.h_angle;
+			flag = !flag;
+		}
+
+//		if (sdata.h_angle >= sj->end_angle_h + started_angle + angle_dif) {
+//			DMSG((STDOUT,"sld_get_measurements sick is out of target position again,@%f!\r\n stop get data.\r\n",sdata.h_angle));
+//			//sj->state = STATE_STOP;
+//			break;
+//		}
+
+		ret =
+				sld_get_measurements(sj->sick, sdata.range_values, sdata.echo_values,
+										sdata.scan_angles, sdata.num_values, sdata.sector_ids, sdata.data_offsets,
+										NULL, NULL, NULL, NULL, NULL);
+
+		if (ret == E_ERROR_TIME_OUT) {
 			DMSG((STDOUT,"sld_get_measurements ERROR: RETRY.\r\n"));
 			Delay(10);
 			continue;
+		} else if (ret <= 0) {
+			DMSG((STDOUT,"sld_get_measurements sickld is down?ret=%d Out.\r\n",ret));
+			break;
 		}
 
 		DMSG((STDOUT,"\rWRITE TO FILE: %f end: %f\n",sdata.h_angle,sj->end_angle_h));
-
 		//等待缓冲区空位
 		while (pool_write(&sj->pool, &sdata) <= 0) {
 			DMSG((STDOUT,"pool_write ERROR: RETRY.\r\n"));
@@ -131,8 +163,7 @@ static void write_pool_data_routine(void* data) {
 		}
 
 	}
-
-	pool_leave(&sj->pool);
+//	pool_leave(&sj->pool);
 	DMSG((STDOUT,"scan job:write_data_routine done.\n"));
 }
 
@@ -145,16 +176,6 @@ static void read_pool_data_routine(void* data) {
 	while (sj->state == STATE_START) {
 		ret = pool_read(&sj->pool, &sdata);
 		if (ret <= 0) {
-			DMSG((STDOUT,"pool_read ERROR: RETRY.\r\n"));
-			Delay(10);
-			continue;
-		}
-//		DMSG((STDOUT,"read_data_routine read data at angle: %f.\r\n", sdata.h_angle));
-		sj_filter_data(sj, &sdata);
-	}
-	for (;;) {
-		ret = pool_read(&sj->pool, &sdata);
-		if (ret <= 0) {
 			DMSG((STDOUT,"pool has been cleared, leave!\r\n"));
 			break;
 		}
@@ -162,10 +183,10 @@ static void read_pool_data_routine(void* data) {
 		sj_filter_data(sj, &sdata);
 	}
 
-	if (e_check(sj->slip_idx*(sj->active_sectors.left+sj->active_sectors.right) != sj->width, "#ERROR# 列数与要求的不一致!\n")) {
-		DMSG((STDOUT, "sj->slip_idx*sector_num = %u, sj->width = %u \n",
-				(unsigned int)sj->slip_idx*(sj->active_sectors.left+sj->active_sectors.right),(unsigned int)sj->width));
-		sj->width = sj->slip_idx * (sj->active_sectors.left + sj->active_sectors.right); //TODO:修复这里,不允许简单丢掉！!
+	if (e_check(sj->slip_idx != sj->width, "#ERROR# 列数与要求的不一致!\n")) {
+		DMSG((STDOUT, "sj->slip_idx = %u, sj->width = %u \n",
+				(unsigned int)sj->slip_idx,(unsigned int)sj->width));
+		sj->width = sj->slip_idx; //TODO:修复这里,不允许简单丢掉！!
 	}
 
 	scan_done(sj);
@@ -183,13 +204,18 @@ e_int32 sj_create(scan_job* sj_ret) {
 	sj = (scan_job) malloc(sizeof(struct scan_job_t));
 	e_assert(sj, E_ERROR_BAD_ALLOCATE);
 	memset(sj, 0, sizeof(scan_job_t));
-	ret = hl_open(&sj->control, (char*) "/dev/ttyUSB0", 38400);
+
+	sj_set_data_dir(sj,"./","./");
+
+	sj->control = (laser_control_t*) malloc(sizeof(struct laser_control_t));
+	e_assert(sj, E_ERROR_BAD_ALLOCATE);
+	memset(sj->control, 0, sizeof(laser_control_t));
+	ret = hl_open(sj->control, (char*) "/dev/ttyUSB0", 38400); //(char*) "/dev/ttyUSB0", 38400);
 	if (e_failed(ret))
 		goto FAILED;
 	ret = sld_create(&sj->sick, NULL, NULL);
 	if (e_failed(ret)) {
-		DMSG(
-				(STDOUT,"connect to sick scanner failed!\nplease check that you'v set the correct IP address.\n"));
+		DMSG((STDOUT,"connect to sick scanner failed!\nplease check that you'v set the correct IP address.\n"));
 		goto FAILED;
 	}
 	pool_init(&sj->pool);
@@ -201,29 +227,52 @@ e_int32 sj_create(scan_job* sj_ret) {
 
 }
 
+e_int32 sj_create_ex(scan_job* sj_ret, laser_control_t *control, char* ip, int port)
+		{
+	e_int32 ret;
+	scan_job sj;
+	sj = (scan_job) malloc(sizeof(struct scan_job_t));
+	e_assert(sj&&control, E_ERROR_BAD_ALLOCATE);
+	memset(sj, 0, sizeof(scan_job_t));
+
+	sj_set_data_dir(sj,"./","./");
+
+	sj->control = control;
+	ret = sld_create(&sj->sick, ip, port);
+	if (e_failed(ret)) {
+		DMSG((STDOUT,"connect to sick scanner failed!\nplease check that you'v set the correct IP address.\n"));
+		goto FAILED;
+	}
+	pool_init(&sj->pool);
+	sj->state = 1;
+	(*sj_ret) = sj;
+	return E_OK;
+	FAILED: free(sj);
+	return ret;
+}
+
 /**
  *\brief 与扫描仪断开连接   
  *\param scan_job 定义了扫描任务。 
  *\retval E_OK 表示成功。
  */
 e_int32 sj_destroy(scan_job sj) {
-	hl_close(&sj->control);
+	hl_close(sj->control);
 	pool_destroy(&sj->pool);
 	sld_release(&sj->sick);
 	sj->state = 0;
+	free(sj->control);
+	free(sj);
 	return E_OK;
 }
 
 static void pre_start(scan_job sj) {
-	e_uint32 gray_size;
 //创建数据文件
 	sj_create_writer(sj);
 //创建缓冲区
 	sj->points_xyz = malloc_points(PNT_TYPE_POLAR, sj->height);
 //创建色彩缓冲
-	gray_size = sj->width * sj->height;
-	sj->points_gray =  malloc_points(PNT_TYPE_GRAY, sj->height);
-
+	sj->points_gray = malloc_points(PNT_TYPE_GRAY, sj->height);
 	sj->slip_idx = 0;
 }
 
@@ -281,7 +330,7 @@ e_int32 sj_start(scan_job sj) {
 	}
 
 	//开始真正数据采集前的准备工作
-	ret = hl_turntable_prepare(&sj->control, sj->pre_scan_angle);
+	ret = hl_turntable_prepare(sj->control, sj->pre_scan_angle);
 	if (ret <= 0) {
 		DMSG((STDOUT, "hd laser control prepared failed!\r\n"));
 		return E_ERROR;
@@ -300,9 +349,9 @@ e_int32 sj_start(scan_job sj) {
 	ret = sld_print_sector_config(sj->sick);
 	e_assert(ret>0, ret);
 
-	wait_sick_start(sj);
+	//wait_sick_start(sj);
 
-	ret = hl_turntable_start(&sj->control);
+	ret = hl_turntable_start(sj->control);
 	if (ret <= 0) {
 		DMSG((STDOUT, "hd laser control start failed!\r\n"));
 		return E_ERROR;
@@ -370,7 +419,7 @@ static e_int32 sj_clean(scan_job sj) {
 	DMSG((STDOUT, "scan job routine clean...\r\n"));
 	if (sj->state == STATE_DONE || sj->state == STATE_STOP) {
 		sj->state = STATE_NONE;
-		hl_turntable_stop(&sj->control);
+		hl_turntable_stop(sj->control);
 		sld_uninitialize(sj->sick);
 		killthread(sj->thread_read);
 		killthread(sj->thread_write);
@@ -387,11 +436,13 @@ static void print_config(scan_job sj) {
 	DMSG((STDOUT,"\tLaser Machine:\n"));
 	DMSG((STDOUT,"\t\tSpeed:%u Hz\n",(unsigned int)sj->speed_v));
 	DMSG((STDOUT,"\t\tResolution:%f\n",sj->resolution_v));
-	DMSG((STDOUT,"\t\tAngle:%f - %f\n",sj->start_angle_v[0],sj->end_angle_v[0]));
-	if (sj->active_sectors.left && sj->active_sectors.right)
+	if (sj->active_sectors.left)
+		DMSG((STDOUT,"\t\tAngle:%f - %f\n",sj->start_angle_v[0],sj->end_angle_v[0]));
+	if (sj->active_sectors.right)
 		DMSG((STDOUT,"\t\tAngle:%f - %f\n",sj->start_angle_v[1],sj->end_angle_v[1]));
 	DMSG((STDOUT,"\tOutput:\n"));
 	DMSG((STDOUT,"\t\tWidth:%u Height:%u\n",sj->width,sj->height));
+	DMSG((STDOUT,"\t\tangle_dif_per_column:%f angle_dif_per_degree:%f\n",sj->angle_dif_per_cloumn,sj->angle_dif_per_degree));
 	DMSG((STDOUT,"\t======================================================\n"));
 }
 
@@ -433,7 +484,7 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
 	sj->end_angle_v[1] = 360 - sj->start_angle_v[0];
 
 	if (sj->end_angle_v[0] >= 180) { //限制了,垂直角度为 -45~+90 度之间
-		sj->end_angle_v[0] = 180;
+		sj->end_angle_v[0] = 180; //中间点放到前面
 		sj->start_angle_v[1] = 180 + sj->resolution_v;
 	}
 
@@ -465,19 +516,32 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
 
 	sj->height = (sj->end_angle_v[0] - sj->start_angle_v[0])
 			/ sj->resolution_v + 1;
-
+#if 0
 	sj->width = ANGLE_TO_STEP( sj->end_angle_h - sj->start_angle_h )
-			* PULSE_SPEED_TO_STEP_TIME(sj->speed_h) / 1E6 * sj->speed_v
-			* (sj->active_sectors.left + sj->active_sectors.right) + 1;
+	* PULSE_SPEED_TO_STEP_TIME(sj->speed_h) / 1E6 * sj->speed_v -1;
+#else
+	sj->width = ANGLE_TO_STEP( sj->end_angle_h - sj->start_angle_h )
+			* PULSE_SPEED_TO_STEP_TIME(sj->speed_h) / 1E6 * sj->speed_v + 1;
+#endif
 
 	sj->pre_scan_angle =
 			STEP_TO_ANGLE(PRE_SCAN_WAIT_TIME / PULSE_SPEED_TO_STEP_TIME(sj->speed_h));
 
+	sj->angle_dif_per_cloumn =
+			STEP_TO_ANGLE( (1E6/sj->speed_v) / PULSE_SPEED_TO_STEP_TIME(sj->speed_h));
+
+	sj->angle_dif_per_degree = sj->angle_dif_per_cloumn / 360;
+
 	print_config(sj);
 
+#if !defined(LINUX)
 	//提交配置到控制板
-	ret = hl_turntable_config(&sj->control, sj->speed_h, sj->start_angle_h,
+	ret = hl_turntable_config(sj->control, sj->speed_h * 1, sj->start_angle_h,
 								sj->end_angle_h + sj->pre_scan_angle);
+#else
+	ret = hl_turntable_config(sj->control, sj->speed_h, sj->start_angle_h,
+			sj->end_angle_h + sj->pre_scan_angle);
+#endif
 	e_assert(ret>0, ret);
 
 	return E_OK;
@@ -490,10 +554,11 @@ e_int32 sj_config(scan_job sj, e_uint32 speed_h, const e_float64 start_angle_h,
  *\param grayDir 定义了灰度图存储目录。
  *\retval E_OK 表示成功。
  */
-e_int32 sj_set_data_file(scan_job sj, char* ptDir, char *grayDir) {
-	e_assert(sj&&sj->state, E_ERROR_INVALID_HANDLER);
-	strncpy(sj->data_file, ptDir, sizeof(sj->data_file));
+e_int32 sj_set_data_dir(scan_job sj, char* ptDir, char *grayDir) {
+	e_assert(sj&&ptDir&&grayDir, E_ERROR_INVALID_HANDLER);
+	strncpy(sj->data_dir, ptDir, sizeof(sj->data_dir));
 	strncpy(sj->gray_dir, grayDir, sizeof(sj->gray_dir));
+	strcpy(sj->pipe_file,"/data/data/com.hd.ls300/cache/test.sprite");
 	return E_OK;
 }
 
@@ -501,16 +566,21 @@ static e_int32 sj_create_writer(scan_job sj) {
 	e_int32 ret;
 	system_time_t sys_time;
 	GetLocalTime(&sys_time);
-	sprintf(sj->data_file, "%d-%d-%d-%d-%d-%d.pcd", sys_time.year,
+	sprintf(sj->data_file, "%s/%d-%d-%d-%d-%d-%d.pcd", sj->data_dir, sys_time.year,
 			sys_time.month, sys_time.day, sys_time.hour, sys_time.minute,
 			sys_time.second);
-	sprintf(sj->gray_dir, "%d-%d-%d-%d-%d-%d.jpg", sys_time.year,
+	sprintf(sj->gray_file, "%s/%d-%d-%d-%d-%d-%d.jpg", sj->gray_dir, sys_time.year,
 			sys_time.month, sys_time.day, sys_time.hour, sys_time.minute,
 			sys_time.second);
-	char *files[] = { sj->data_file, sj->gray_dir, "/tmp/test.sprite" };
+#if !defined(LINUX)
+	char *files[] = { sj->data_file, sj->gray_file, sj->pipe_file };
+#else
+	char *files[] = {sj->data_file, sj->gray_file, "/tmp/test.sprite"};
+#endif
 	sj->writer = dm_alloc(files, 3, sj->width, sj->height,
-							sj->active_sectors.right ? E_DWRITE : E_WRITE);
-	e_assert(ret>0, ret);
+							sj->active_sectors.right && sj->active_sectors.left ?
+									E_DWRITE : E_WRITE);
+	e_assert(sj->writer, E_ERROR_BAD_ALLOCATE);
 	return E_OK;
 }
 
@@ -530,18 +600,19 @@ static e_uint8 gray_filter(e_uint32 echo) {
 static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 		e_uint32 data_num, e_int32 type) {
 //	unsigned int pnt_idx = 0;
-	unsigned int gray_idx = sj->slip_idx;
+//	unsigned int gray_idx = sj->slip_idx;
 	point_gray_t* pgray;
 	point_polar_t *ppoint;
+	unsigned int column_idx;
 
 	if (sj->slip_idx >= sj->width) {
 		DMSG((STDOUT,"sj->slip_idx > sj->width,忽略多余数据\n"));
 		return E_OK;
 	}
 
-	if (type && sj->active_sectors.left) {
-		gray_idx += sj->width / 2; //有左区,写右区时要跳过左区
-	}
+//	if (type && sj->active_sectors.left) {
+//		gray_idx += sj->height; //有左区,写右区时要跳过左区
+//	}
 
 	ppoint = (point_polar_t*) sj->points_xyz->mem;
 	pgray = (point_gray_t*) sj->points_gray->mem;
@@ -561,24 +632,26 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 				(unsigned int)data_num,(unsigned int)sj->height));
 		return E_ERROR;
 	}
-//	if(data_num+1 == sj->height) data_num = sj->height;
 
-	if (type)
+	if (!type)
 	{
 		for (int k = data_num - 1; k >= 0; --k) {
 			ppoint->distance = pdata->range_values[data_idx + k];
-			ppoint->angle_h = pdata->h_angle;
 			ppoint->angle_v = pdata->scan_angles[data_idx + k];
+			ppoint->angle_h = pdata->h_angle;
+#if HACK_PNT_ANGLE_H
+			ppoint->angle_h += ppoint->angle_v * sj->angle_dif_per_degree;
+#endif
 			ppoint->intensity = intensity_filter(pdata->echo_values[data_idx + k]);
 			pgray->gray = gray_filter(pdata->echo_values[data_idx + k]);
-//			if (pnt_idx >= sj->height) //点数个数限制
-//					{
-//				DMSG((STDOUT,"#ERROR# FOUD pnt_idx >= sj->height\r\n"));
-//				break;
-//			}
-//			pnt_idx++;
+
 			if (ppoint->distance <= 0.0000005) {
-				DMSG((STDOUT,"I"));
+				//DMSG((STDOUT,"I"));
+
+#ifdef HACK_INVALID_DATA
+				(*ppoint) = *(ppoint - 1);
+				(*pgray) = *(pgray - 1);
+#endif
 			}
 			ppoint++;
 			pgray++;
@@ -586,35 +659,49 @@ static e_int32 one_slip(scan_job sj, scan_data_t * pdata, e_int32 data_idx,
 	}
 	else
 	{
-		for (unsigned int k = 0; k < data_num; ++k) {
+#define SHIFT_NUM 0
+		//补一行
+		if (sj->active_sectors.left && sj->active_sectors.right) {
+			ppoint += SHIFT_NUM + 1;
+			pgray += SHIFT_NUM + 1;
+		}
+		for (unsigned int k = 0; k < data_num - SHIFT_NUM; ++k) {
 			ppoint->distance = pdata->range_values[data_idx + k];
-			ppoint->angle_h = pdata->h_angle;
 			ppoint->angle_v = pdata->scan_angles[data_idx + k];
+			ppoint->angle_h = pdata->h_angle;
+
+#if HACK_PNT_ANGLE_H
+			ppoint->angle_h += ppoint->angle_v * sj->angle_dif_per_degree;
+#endif
+
 			ppoint->intensity = intensity_filter(pdata->echo_values[data_idx + k]);
 			pgray->gray = gray_filter(pdata->echo_values[data_idx + k]);
-//			if (pnt_idx >= sj->height) //点数个数限制
-//					{
-//				DMSG((STDOUT,"#ERROR# FOUD pnt_idx >= sj->height\r\n"));
-//				break;
-//			}
-//			pnt_idx++;
 			if (ppoint->distance <= 0.0000005) {
-				DMSG((STDOUT,"|"));
+				//DMSG((STDOUT,"|"));
+#ifdef HACK_INVALID_DATA
+				(*ppoint) = *(ppoint - 1);
+				(*pgray) = *(pgray - 1);
+#endif
 			}
 			ppoint++;
 			pgray++;
 		} // end for
 	}
-//	if (pnt_idx < sj->height) //点数个数不够?
-//			{
-//		DMSG((STDOUT,"#ERROR# type:%d,data_num:%u,FOUD pnt_idx[%u] < sj->height[%u]\r\n",
-//				type,(unsigned int)data_num,pnt_idx,(unsigned int)sj->height));
-//	}
 
 //if (!bPreScan)
 	{
 		dm_append_points(sj->writer, sj->points_xyz, sj->height, type);
-		dm_append_points(sj->writer, sj->points_gray, sj->height, type);
+#if 1
+		dm_write_column(sj->writer, sj->slip_idx, sj->points_gray, type);
+#else
+		if (pdata->h_angle > 0.0
+				&& pdata->h_angle <= (sj->end_angle_h - sj->start_angle_h)) {
+			column_idx = pdata->h_angle * sj->width
+			/ (sj->end_angle_h - sj->start_angle_h);
+			DMSG((STDOUT,"\nh_angle %f,column_idx %u\n",pdata->h_angle,column_idx));
+			dm_write_column(sj->writer, /*sj->slip_idx*/column_idx, sj->points_gray, type);
+		}
+#endif
 	}
 
 	return E_OK;
@@ -627,6 +714,15 @@ e_int32 sj_filter_data(scan_job sj, scan_data_t * pdata) {
 	e_assert(sj&&sj->state, E_ERROR_INVALID_HANDLER);
 	int didx = 0;
 
+	if (sj->slip_idx >= sj->width) {
+		sj->state = STATE_STOP;
+		DMSG((STDOUT,"sj_filter_data I'm full...\n"));
+		return E_ERROR;
+	}
+#if HACK_SLIP_ANGLE
+	pdata->h_angle = sj->slip_idx * sj->angle_dif_per_cloumn + sj->start_angle_h;
+#endif
+
 	if (sj->active_sectors.left) {
 		one_slip(sj, pdata, pdata->data_offsets[didx], pdata->num_values[didx], 0);
 		didx++;
@@ -635,100 +731,10 @@ e_int32 sj_filter_data(scan_job sj, scan_data_t * pdata) {
 	if (sj->active_sectors.right) {
 		one_slip(sj, pdata, pdata->data_offsets[didx], pdata->num_values[didx], 1);
 	}
-
 	sj->slip_idx++;
-
+	if (sj->slip_idx >= sj->width) {
+		sj->state = STATE_STOP;
+		DMSG((STDOUT,"sj_filter_data get enough data,last angle h = %f\n",pdata->h_angle));
+	}
 	return E_OK;
 }
-
-int sj_save2image(char *filename, unsigned char *bits, int width, int height,
-		int depth) {
-	struct jpeg_compress_struct cinfo;
-	struct jpeg_error_mgr jerr;
-	FILE * outfile; /* target file */
-	JSAMPROW row_pointer[1]; /* pointer to JSAMPLE row[s] */
-	int row_stride; /* physical row width in image buffer */
-
-	cinfo.err = jpeg_std_error(&jerr);
-	jpeg_create_compress(&cinfo);
-
-	if ((outfile = fopen(filename, "wb")) == NULL) {
-		fprintf(stderr, "can't open %s/n", filename);
-		return -1;
-	}
-	jpeg_stdio_dest(&cinfo, outfile);
-
-	cinfo.image_width = width; /* image width and height, in pixels */
-	cinfo.image_height = height;
-	cinfo.input_components = 1; /* # of color components per pixel */
-	cinfo.in_color_space = JCS_GRAYSCALE; /* colorspace of input image */
-
-	jpeg_set_defaults(&cinfo);
-	jpeg_set_quality(&cinfo, JPEG_QUALITY,
-						TRUE /* limit to baseline-JPEG values */);
-
-	jpeg_start_compress(&cinfo, TRUE);
-
-	row_stride = width * depth; /* JSAMPLEs per row in image_buffer */
-
-	while (cinfo.next_scanline < cinfo.image_height) {
-		//这里我做过修改，由于jpg文件的图像是倒的，所以改了一下读的顺序
-		row_pointer[0] = &bits[cinfo.next_scanline * row_stride];
-		//row_pointer[0] = & bits[(cinfo.image_height - cinfo.next_scanline - 1) * row_stride];
-		(void) jpeg_write_scanlines(&cinfo, row_pointer, 1);
-	}
-
-	jpeg_finish_compress(&cinfo);
-	fclose(outfile);
-
-	jpeg_destroy_compress(&cinfo);
-	return 0;
-}
-
-static int sj_save2image_rotation(char *filename, unsigned char *bits, int width,
-		int height) {
-	struct jpeg_compress_struct cinfo;
-	struct jpeg_error_mgr jerr;
-	FILE * outfile; /* target file */
-	JSAMPROW row_pointer[1]; /* pointer to JSAMPLE row[s] */
-	int row_stride; /* physical row width in image buffer */
-
-	cinfo.err = jpeg_std_error(&jerr);
-	jpeg_create_compress(&cinfo);
-
-	if ((outfile = fopen(filename, "wb")) == NULL) {
-		fprintf(stderr, "can't open %s/n", filename);
-		return -1;
-	}
-	jpeg_stdio_dest(&cinfo, outfile);
-
-	cinfo.image_width = height; /* image width and height, in pixels */
-	cinfo.image_height = width;
-	cinfo.input_components = 1; /* # of color components per pixel */
-	cinfo.in_color_space = JCS_GRAYSCALE; /* colorspace of input image */
-
-	jpeg_set_defaults(&cinfo);
-	jpeg_set_quality(&cinfo, JPEG_QUALITY,
-						TRUE /* limit to baseline-JPEG values */);
-
-	jpeg_start_compress(&cinfo, TRUE);
-
-	row_stride = height; /* JSAMPLEs per row in image_buffer */
-
-	unsigned char *row = (unsigned char *) malloc(row_stride);
-	row_pointer[0] = row;
-	while (cinfo.next_scanline < cinfo.image_height) {
-		for (int i = 0; i < row_stride; i++) { //get one row
-			row[i] = bits[cinfo.next_scanline + i * width];
-		}
-		(void) jpeg_write_scanlines(&cinfo, row_pointer, 1);
-	}
-	free(row);
-
-	jpeg_finish_compress(&cinfo);
-	fclose(outfile);
-
-	jpeg_destroy_compress(&cinfo);
-	return 0;
-}
-

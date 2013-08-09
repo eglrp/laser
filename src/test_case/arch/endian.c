@@ -1,3 +1,4 @@
+#include "../hd_test_config.h"
 #ifdef TEST_ENDIAN
 
 #include <stdio.h>

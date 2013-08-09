@@ -226,13 +226,15 @@ typedef enum E_RESULT{
 
 //connection control
 enum {
-	E_TCP =1,
-	E_UDP =2,
-	E_BLOCK =3,
-	E_NONBLOCK =4,
-	E_READ =5,
-	E_WRITE =6,
-	E_DWRITE =7,
+	E_SOCKET_TCP =1,
+	E_SOCKET_UDP =2,
+	E_SOCKET_NAME =3,
+
+	E_BLOCK =11,
+	E_NONBLOCK =12,
+	E_READ =13,
+	E_WRITE =14,
+	E_DWRITE =15,
 };
 
 

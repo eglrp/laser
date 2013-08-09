@@ -11,116 +11,65 @@
  *
  */
 
+#include "../hd_test_config.h"
 #if TEST_ADAPTER
-
+#include <ls300/hd_data_adapter.h>
 #include <stdio.h>
 #include <math.h>
-#include <ls300/hd_data_adapter.h>
 #include <comm/hd_point_type.h>
 
-#define SIZE 180
+#define W 	721
+#define H	541
 point_t *point_array;
-
-point_xyz_t *points;
 point_gray_t *points_gray;
+point_xyz_t *points;
 
 int main()
 {
-	int ret;
+	data_adapter_t da;
+	unsigned char file_name[][64] = { "test.pcd1", "test.jpg", "test.gif",
+			"/data/local/tmp/test.sprite" };
 
-	point_array = malloc_points(PNT_TYPE_XYZ,SIZE);
-	points = (point_xyz_t*)point_array->mem;
+	da_open(&da, file_name[3], W, H, E_DWRITE); //data_adapter_t *da, e_uint8 *name, int mode
 
-	data_adapter_t *da;
-	unsigned char file_name[][20] = { "test.pcd", "test.jpg", "test.gif" ,"/tmp/test.sprite"};
-
-	da = (data_adapter_t*) malloc(sizeof(data_adapter_t));
-
-
-	memset(da, 0, sizeof(data_adapter_t));
-
-	ret = da_open(da, file_name[0], SIZE, SIZE, E_DWRITE); //data_adapter_t *da, e_uint8 *name, int mode
-
-	for (int i = 0; i < SIZE; i++) {
-		points[i].x = SIZE * sin(i * M_PI / SIZE);
-		points[i].y = SIZE * cos(i * M_PI / SIZE);
-		points[i].z = SIZE * sin(M_PI - i * M_PI / SIZE);
-	}
-
-	for (int i = 0; i < SIZE; i++)
-		da_append_points(da, point_array, SIZE, 0);
-
-	for (int i = 0; i < SIZE; i++) {
-		points[i].x += 100;
-		points[i].y += 100;
-		points[i].z += 100;
-	}
-
-	for (int i = 0; i < SIZE; i++)
-		da_append_points(da, point_array, SIZE, 1);
-
-	da_close(da);
-	free_points(point_array);
-
-
-//test2
-	point_array = malloc_points(PNT_TYPE_GRAY,SIZE);
+	point_array = malloc_points(PNT_TYPE_GRAY,H);
 	points_gray = (point_gray_t*)point_array->mem;
-	memset(da, 0, sizeof(data_adapter_t));
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = 255 * i / SIZE;
 
-	ret = da_open(da, file_name[1], SIZE, SIZE, E_DWRITE); //data_adapter_t *da, e_uint8 *name, int mode
+	for (int i = 0; i < H; i++)
+		points_gray[i].gray = 80;
 
-	for (int i = 0; i < SIZE; i++)
-		da_append_points(da, point_array, SIZE, 0);
+	for (int i = 0; i < W; i++)
+		da_write_column(&da,i, point_array, 0);
 
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = (128 + 255 / SIZE * i) % 255;
+	for (int i = 0; i < H; i++)
+		points_gray[i].gray = 160;
 
-	for (int i = 0; i < SIZE; i++)
-		da_append_points(da, point_array, SIZE, 1);
+	for (int i = 0; i < W; i++)
+		da_write_column(&da, W - i - 1, point_array, 1);
 
-	da_close(da);
-
-//test3
-	memset(da, 0, sizeof(data_adapter_t));
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = 255 * i / SIZE;
-
-	ret = da_open(da, file_name[2], SIZE, SIZE, E_DWRITE); //data_adapter_t *da, e_uint8 *name, int mode
-
-	for (int i = 0; i < SIZE; i++)
-		da_append_row(da, point_array, 0);
-
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = (128 + 255 / SIZE * i) % 255;
-
-	for (int i = 0; i < SIZE; i++)
-		da_write_row(da, SIZE - i - 1, point_array, 1);
-
-	da_close(da);
-
-//test4
-	memset(da, 0, sizeof(data_adapter_t));
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = 'A';
-
-	ret = da_open(da, file_name[3], SIZE, SIZE, E_DWRITE);
-
-	for (int i = 0; i < SIZE; i++)
-		da_write_column(da, i, point_array, 0);
-
-	for (int i = 0; i < SIZE; i++)
-		points_gray[i].gray = 'B';
-
-	for (int i = 0; i < SIZE; i++)
-		da_write_column(da, SIZE - i -1, point_array, 1);
-
-	da_close(da);
+//	point_array = malloc_points(PNT_TYPE_XYZ, H);
+//	points = (point_xyz_t*) point_array->mem;
+//
+//	for (int i = 0; i < H; i++) {
+//		points[i].x = H * sin(i * M_PI / H);
+//		points[i].y = H * cos(i * M_PI / H);
+//		points[i].z = H * sin(M_PI - i * M_PI / H);
+//	}
+//
+//	for (int i = 0; i < W; i++)
+//		da_append_points(&da, point_array, H, 0);
+//
+//	for (int i = 0; i < H; i++) {
+//		points[i].x += 100;
+//		points[i].y += 100;
+//		points[i].z += 100;
+//	}
+//
+//	for (int i = 0; i < W; i++)
+//		da_append_points(&da, point_array, H, 1);
+//
+	da_close(&da);
 	free_points(point_array);
-
-	free(da);
 	printf("ALL TEST PASSED!\n");
 	return 0;
 }

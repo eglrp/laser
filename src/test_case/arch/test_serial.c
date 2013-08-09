@@ -1,3 +1,4 @@
+#include "../hd_test_config.h"
 #ifdef TEST_SERIAL
 
 #include <termios.h>

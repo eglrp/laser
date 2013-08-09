@@ -28,8 +28,6 @@
 #include <iostream>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <arch/hd_pipe_api.h>
 #include <ls300/hd_connect.h>
@@ -109,8 +107,27 @@ static e_int32 inter_sprite_on_data_change(file_ptr_t *file1, file_ptr_t *file2)
 //open和close是必须有的接口
 file_adapter_t file_adpt[] = {
 	{
-		file_suffix : "pcd",
+		file_suffix : "pcd1",
 		pnt_type: PNT_TYPE_XYZ,
+		op : {
+			open:inter_pcl_open,
+			combine:inter_pcl_combine,
+			on_data_change:NULL,
+			close:inter_pcl_close,
+			write_point:inter_pcl_write_point,
+			write_row:inter_pcl_write_row,
+			write_column:inter_pcl_write_column,
+			append_points:inter_pcl_append_points,
+			append_row:inter_pcl_append_row,
+			append_column:inter_pcl_append_column,
+			read_points:inter_pcl_read_points,
+			read_row:inter_pcl_read_row,
+			read_column:inter_pcl_read_column
+		}
+	},
+	{
+		file_suffix : "pcd",
+		pnt_type: PNT_TYPE_POLAR,
 		op : {
 			open:inter_pcl_open,
 			combine:inter_pcl_combine,
@@ -190,25 +207,32 @@ const static int FILE_TYPE_NUM = sizeof(file_adpt) / sizeof(file_adapter_t);
 
 /////////////////////////////////////////////////////////////////////////////////
 //da
+static char* get_file_suffix(char* name){
+	int len = strlen(name);
+	char *p = name + len -1;
+	for(;p!=name;p--){
+		if((*p) == '.'){
+			return p+1;
+		}
+	}
+	return NULL;
+}
 
 e_int32 da_open(data_adapter_t *da, e_uint8 *name, int width, int height, int mode) {
 	e_assert(strlen((char*) name) < MAX_PATH_LEN, E_ERROR);
 
 	memset(da, 0, sizeof(data_adapter_t));
 
-	char tmp[MAX_PATH_LEN] = { 0 };
 	char* file_type = NULL;
 	int num;
 
-	strcpy(tmp, (char*) name);
 	strcpy(da->file_info.file_name, (char*) name);
 
 	da->file_info.width = width;
 	da->file_info.height = height;
 	da->file_info.mode = mode;
 
-	file_type = strtok(tmp, ".");
-	file_type = strtok(NULL, ".");
+	file_type = get_file_suffix((char*)name);
 
 	for (num = 0; num < FILE_TYPE_NUM; num++) {
 		int ret = strncmp(file_type, file_adpt[num].file_suffix,
@@ -218,7 +242,8 @@ e_int32 da_open(data_adapter_t *da, e_uint8 *name, int width, int height, int mo
 			da->file_info.pnt_type = file_adpt[num].pnt_type;
 			if (mode == E_READ) {
 				da->file.read.info = da->file_info;
-				da->op.open(&da->file.read);
+				ret = da->op.open(&da->file.read);
+				e_assert(ret>0,ret);
 				da->file_info = da->file.read.info;
 			}
 			else if (E_DWRITE == mode) {
@@ -226,13 +251,16 @@ e_int32 da_open(data_adapter_t *da, e_uint8 *name, int width, int height, int mo
 				da->file.write.left.is_main = 1;
 				da->file.write.right.info = da->file_info;
 				strcat(da->file.write.right.info.file_name, ".tmp");
-				da->op.open(&da->file.write.left);
-				da->op.open(&da->file.write.right);
+				ret = da->op.open(&da->file.write.left);
+				e_assert(ret>0,ret);
+				ret = da->op.open(&da->file.write.right);
+				e_assert(ret>0,ret);
 			}
 			else if (E_WRITE == mode) {
 				da->file.write.left.info = da->file_info;
 				da->file.write.left.is_main = 1;
-				da->op.open(&da->file.write.left);
+				ret = da->op.open(&da->file.write.left);
+				e_assert(ret>0,ret);
 			}
 			break;
 		}
@@ -280,7 +308,7 @@ e_int32 da_append_points(data_adapter_t *da, point_t* point, int pt_num, int fil
 				E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
-	if (!file_right) {
+	if (!file_right || da->file_info.mode == E_WRITE) {
 		e_assert(da->file_info.mode==E_WRITE || da->file_info.mode==E_DWRITE, E_ERROR);
 		file = &da->file.write.left;
 	}
@@ -306,7 +334,7 @@ e_int32 da_append_row(data_adapter_t *da, point_t* point, int file_right)
 	e_assert(da && da->state && da->pnt_type == point->type && da->op.append_row && point, E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
-	if (!file_right) {
+	if (!file_right || da->file_info.mode == E_WRITE) {
 		e_assert(da->file_info.mode==E_WRITE || da->file_info.mode==E_DWRITE, E_ERROR);
 		file = &da->file.write.left;
 	}
@@ -332,7 +360,7 @@ e_int32 da_write_row(data_adapter_t *da, e_uint32 row_idx, point_t* point, int f
 	e_assert(da && da->state && da->pnt_type == point->type && da->op.write_row && point, E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
-	if (!file_right) {
+	if (!file_right || da->file_info.mode == E_WRITE) {
 		e_assert(da->file_info.mode==E_WRITE || da->file_info.mode==E_DWRITE, E_ERROR);
 		file = &da->file.write.left;
 	}
@@ -358,7 +386,7 @@ e_int32 da_write_column(data_adapter_t *da, e_uint32 column_idx, point_t* point,
 	e_assert(da && da->state&& da->pnt_type == point->type && da->op.write_column && point, E_ERROR_INVALID_HANDLER);
 	file_ptr_t * file;
 
-	if (!file_right) {
+	if (!file_right || da->file_info.mode == E_WRITE) {
 		e_assert(da->file_info.mode==E_WRITE || da->file_info.mode==E_DWRITE, E_ERROR);
 		file = &da->file.write.left;
 	}
@@ -368,7 +396,7 @@ e_int32 da_write_column(data_adapter_t *da, e_uint32 column_idx, point_t* point,
 	}
 
 	file->modify = 1;
-	e_assert(column_idx < file->info.height, E_ERROR);
+	e_assert(column_idx < file->info.width, E_ERROR);
 	ret = da->op.write_column(file, column_idx, point);
 
 	if (da->op.on_data_change)
@@ -413,15 +441,20 @@ static e_int32 register_file_format(data_adapter_t *da, int i) {
 	da->pnt_type = file_adpt[i].pnt_type;
 	return E_OK;
 }
-
-////////////////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////////////////
 //PCL
+#if LINUX
+#define HAS_LIBPCL 1
+#endif
+
+#if HAS_LIBPCL
 static e_int32 inter_pcl_open(file_ptr_t *file)
-		{
+{
 	if (file->info.mode == E_READ) {
 		pcl::PointCloud<pcl::PointXYZ> * cloud = new pcl::PointCloud<pcl::PointXYZ>();
 		if (pcl::io::loadPCDFile<pcl::PointXYZ>("test_pcd.pcd", *cloud) == -1) //打开点云文件
-				{
+		{
 			PCL_ERROR("Couldn't read file test_pcd.pcd\n");
 			return (-1);
 		}
@@ -444,11 +477,11 @@ static e_int32 inter_pcl_open(file_ptr_t *file)
 	return E_OK;
 }
 static e_int32 inter_pcl_combine(file_ptr_t *file1, file_ptr_t *file2)
-		{
+{
 	pcl::PointCloud<pcl::PointXYZ> *cloud1 =
-			(pcl::PointCloud<pcl::PointXYZ> *) (pcl::PointCloud<pcl::PointXYZ> *) file1->handle;
+	(pcl::PointCloud<pcl::PointXYZ> *) (pcl::PointCloud<pcl::PointXYZ> *) file1->handle;
 	pcl::PointCloud<pcl::PointXYZ> *cloud2 =
-			(pcl::PointCloud<pcl::PointXYZ> *) (pcl::PointCloud<pcl::PointXYZ> *) file2->handle;
+	(pcl::PointCloud<pcl::PointXYZ> *) (pcl::PointCloud<pcl::PointXYZ> *) file2->handle;
 
 	(*cloud1) += (*cloud2);
 
@@ -457,11 +490,164 @@ static e_int32 inter_pcl_combine(file_ptr_t *file1, file_ptr_t *file2)
 }
 static e_int32 inter_pcl_close(file_ptr_t *file) {
 	pcl::PointCloud<pcl::PointXYZ> *cloud =
-			(pcl::PointCloud<pcl::PointXYZ> *) file->handle;
+	(pcl::PointCloud<pcl::PointXYZ> *) file->handle;
 	if (file->info.mode == E_WRITE) {
 		pcl::io::savePCDFileASCII(file->info.file_name, *cloud);
 	}
 	delete cloud;
+	return E_OK;
+}
+static e_int32 inter_pcl_write_point(file_ptr_t *file, int x, int y, point_t* point) {
+	return E_ERROR;
+}
+static e_int32 inter_pcl_write_row(file_ptr_t *file, e_uint32 row_idx, point_t* point) {
+	return E_ERROR;
+}
+static e_int32 inter_pcl_write_column(file_ptr_t *file, e_uint32 column_idx,
+		point_t* point) {
+	return E_ERROR;
+}
+
+static point_xyz_t* transfor2xyz(point_t* pnts, int i, point_xyz_t *xyz) {
+	point_polar_t *polar = (point_polar_t*) pnts->mem;
+	switch (pnts->type) {
+		case PNT_TYPE_XYZ:
+		return ((point_xyz_t*) pnts->mem) + i;
+		case PNT_TYPE_POLAR:
+		hd_polar2xyz(&xyz->x, &xyz->y, &xyz->z,
+				polar[i].distance, polar[i].angle_h, polar[i].angle_v);
+		return xyz;
+		default:
+		DMSG((STDOUT,"transfor2xyz ERROR \n"));
+		return NULL;
+	}
+}
+
+static e_int32 inter_pcl_append_points(file_ptr_t *file, point_t* pnts, int pt_num) {
+	pcl::PointCloud<pcl::PointXYZ> *cloud =
+	(pcl::PointCloud<pcl::PointXYZ> *) (pcl::PointCloud<pcl::PointXYZ> *) file->handle;
+	int idx = 0;
+	point_xyz_t xyz, *pxyz;
+
+	while (pt_num--)
+	{
+		pxyz = transfor2xyz(pnts, idx, &xyz);
+		cloud->points[file->cousor].x = pxyz->x;
+		cloud->points[file->cousor].y = pxyz->y;
+		cloud->points[file->cousor].z = pxyz->z;
+		file->cousor++;
+		idx++;
+	}
+	return E_OK;
+
+}
+static e_int32 inter_pcl_append_row(file_ptr_t *file, point_t* point) {
+	return E_ERROR;
+}
+static e_int32 inter_pcl_append_column(file_ptr_t *file, point_t* point) {
+	return E_ERROR;
+}
+
+static e_int32 inter_pcl_read_points(file_ptr_t *file, point_t* pnts, int buf_len) {
+	pcl::PointCloud<pcl::PointXYZ> *cloud =
+	(pcl::PointCloud<pcl::PointXYZ> *) file->handle;
+	point_xyz_t *point = (point_xyz_t*) pnts->mem;
+	while (buf_len--)
+	{
+		point->x = cloud->points[file->cousor].x;
+		point->y = cloud->points[file->cousor].y;
+		point->z = cloud->points[file->cousor].z;
+		point++;
+		file->cousor++;
+	}
+	return E_OK;
+}
+static e_int32 inter_pcl_read_row(file_ptr_t *file, e_uint32 row_idx, point_t* buf) {
+	return E_ERROR;
+}
+static e_int32 inter_pcl_read_column(file_ptr_t *file, e_uint32 column_idx,
+		point_t* buf) {
+	return E_ERROR;
+}
+
+#else
+
+static e_int32 inter_pcl_open(file_ptr_t *file)
+		{
+	e_int32 ret;
+	if (file->info.mode == E_READ) {
+		file_t *f = (file_t *) malloc(sizeof(file_t));
+		ret = fi_open(file->info.file_name, F_READ, f);
+		e_assert(ret, E_ERROR_INVALID_HANDLER);
+		file->handle = (size_t) f;
+		fscanf((FILE*) f->fpid, "%20u,%20u\n", &file->info.width, &file->info.height);
+	}
+	else
+	{
+		file_t *f = (file_t *) malloc(sizeof(file_t));
+		ret = fi_open(file->info.file_name, F_READ | F_WRITE | F_CREATE, f);
+		e_assert(ret, E_ERROR_INVALID_HANDLER);
+
+		if (setvbuf((FILE*) f->fpid, NULL, _IOFBF, 65536) != 0)
+				{
+			fprintf(stderr, "WARNING: setvbuf() failed with buffer size %u\n", 65536);
+		}
+
+		file->handle = (size_t) f;
+		fprintf((FILE*) f->fpid, "%20u,%20u\n", file->info.width, file->info.height);
+	}
+
+	return E_OK;
+}
+static e_int32 inter_pcl_combine(file_ptr_t *file1, file_ptr_t *file2)
+		{
+	FILE* f1, *f2;
+	unsigned int count, w, h, done;
+	int buf_size = 1024 * 1024;
+	char *buf = (char*) malloc(buf_size);
+	e_assert(buf, E_ERROR_INVALID_CALL);
+
+	f1 = (FILE*) ((file_t*) file1->handle)->fpid;
+	f2 = (FILE*) ((file_t*) file2->handle)->fpid;
+	rewind(f1);
+	rewind(f2);
+	w = file1->info.width + file2->info.width;
+	h = file2->info.height + file2->info.height;
+
+	//写头
+	fprintf(f1, "%20u,%20u\n", w, h);
+	//合并后面部分
+	fseek(f2, 40, SEEK_SET);
+	fseek(f1, 0, SEEK_END);
+	while ((count = fread(buf, 1, buf_size, f2)) != 0)
+	{
+		done = fwrite(buf, 1, count, f1);
+		e_assert(done == count, E_ERROR_INVALID_CALL);
+	}
+
+	free(buf);
+	file2->info.mode = -1; //不需保存
+	return E_OK;
+}
+static e_int32 inter_pcl_close(file_ptr_t *file) {
+	file_t* fd = (file_t*) file->handle;
+	FILE* f1 = (FILE*) fd->fpid;
+
+	switch (file->info.mode)
+	{
+	case E_READ:
+		case E_WRITE:
+		fclose(f1);
+		break;
+	case -1:
+		fclose(f1);
+		fi_delete(file->info.file_name);
+		break;
+	default:
+		DMSG((STDOUT,"ERROR file.info.mode"));
+	}
+
+	free(fd);
 	return E_OK;
 }
 static e_int32 inter_pcl_write_point(file_ptr_t *file, int x, int y, point_t* point) {
@@ -491,17 +677,15 @@ static point_xyz_t* transfor2xyz(point_t* pnts, int i, point_xyz_t *xyz) {
 }
 
 static e_int32 inter_pcl_append_points(file_ptr_t *file, point_t* pnts, int pt_num) {
-	pcl::PointCloud<pcl::PointXYZ> *cloud =
-			(pcl::PointCloud<pcl::PointXYZ> *) (pcl::PointCloud<pcl::PointXYZ> *) file->handle;
 	int idx = 0;
 	point_xyz_t xyz, *pxyz;
+	file_t* fd = (file_t*) file->handle;
+	FILE* f1 = (FILE*) fd->fpid;
 
 	while (pt_num--)
 	{
 		pxyz = transfor2xyz(pnts, idx, &xyz);
-		cloud->points[file->cousor].x = pxyz->x;
-		cloud->points[file->cousor].y = pxyz->y;
-		cloud->points[file->cousor].z = pxyz->z;
+		fprintf(f1, "%.10g,%.10g,%.10g\n", pxyz->x, pxyz->y, pxyz->z);
 		file->cousor++;
 		idx++;
 	}
@@ -516,14 +700,13 @@ static e_int32 inter_pcl_append_column(file_ptr_t *file, point_t* point) {
 }
 
 static e_int32 inter_pcl_read_points(file_ptr_t *file, point_t* pnts, int buf_len) {
-	pcl::PointCloud<pcl::PointXYZ> *cloud =
-			(pcl::PointCloud<pcl::PointXYZ> *) file->handle;
 	point_xyz_t *point = (point_xyz_t*) pnts->mem;
+	file_t* fd = (file_t*) file->handle;
+	FILE* f1 = (FILE*) fd->fpid;
+
 	while (buf_len--)
 	{
-		point->x = cloud->points[file->cousor].x;
-		point->y = cloud->points[file->cousor].y;
-		point->z = cloud->points[file->cousor].z;
+		fscanf(f1, "%0.10g,%0.10g,%0.10g\n", &point->x, &point->y, &point->z);
 		point++;
 		file->cousor++;
 	}
@@ -536,6 +719,8 @@ static e_int32 inter_pcl_read_column(file_ptr_t *file, e_uint32 column_idx,
 		point_t* buf) {
 	return E_ERROR;
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //JPG
@@ -564,34 +749,49 @@ static e_int32 inter_jpg_open(file_ptr_t *file)
 }
 static e_int32 inter_jpg_combine(file_ptr_t *file1, file_ptr_t *file2)
 		{
-	int width, height;
+	unsigned int width, height;
 	e_uint8 *jpg1 = (e_uint8 *) file1->handle;
 	e_uint8 *jpg2 = (e_uint8 *) file2->handle;
-
+#if 0
 //TODO:支持多种合并,等高合并,按行合并,按列合并
 	e_assert(file1->info.width == file2->info.width, E_ERROR_INVALID_PARAMETER);
 
-//TODO:这里可以采用虚拟合并的方式,只保存索引,可减少内存使用.
 	width = file1->info.width;
-	height = file1->info.height + file2->info.height;
+	height = file1->info.height+file2->info.height;
 
 	e_uint8 *jpg = (e_uint8 *) malloc(width * height);
+	e_uint8* output=jpg;
 	memcpy(jpg, jpg1, file1->info.width * file1->info.height);
 	memcpy(jpg + file1->info.width * file1->info.height, jpg2,
 			file2->info.width * file2->info.height);
+#else
+	e_assert(file1->info.height == file2->info.height, E_ERROR_INVALID_PARAMETER);
+
+	width = file1->info.width + file2->info.width;
+	height = file1->info.height;
+	e_uint8 *jpg = (e_uint8 *) malloc(width * height);
+	e_uint8* output = jpg;
+	for (unsigned int i = 0; i < height; i++) {
+		memcpy(jpg, jpg1, file1->info.width);
+		jpg += file1->info.width;
+		jpg1 += file1->info.width;
+		memcpy(jpg, jpg2, file2->info.width);
+		jpg += file2->info.width;
+		jpg2 += file2->info.width;
+	}
+#endif
 
 //调整合并后的高宽
 	file1->info.width = width;
 	file1->info.height = height;
-	free(jpg1);
-	file1->handle = (size_t) jpg;
+	free((void*) file1->handle);
+	file1->handle = (size_t) output;
 
 	file2->info.mode = -1; //不需保存
 	return E_OK;
 }
 
-int _save2image(char *filename, unsigned char *bits, int width, int height,
-		int depth)
+int _save2image(char *filename, unsigned char *bits, int width, int height)
 		{
 	struct jpeg_compress_struct cinfo;
 	struct jpeg_error_mgr jerr;
@@ -615,7 +815,7 @@ int _save2image(char *filename, unsigned char *bits, int width, int height,
 	jpeg_set_defaults(&cinfo);
 	jpeg_set_quality(&cinfo, JPEG_QUALITY, TRUE); // limit to baseline-JPEG values
 	jpeg_start_compress(&cinfo, TRUE);
-	row_stride = width * depth; // JSAMPLEs per row in image_buffer
+	row_stride = width * 1; // JSAMPLEs per row in image_buffer
 	while (cinfo
 			.next_scanline < cinfo.image_height) {
 //这里我做过修改，由于jpg文件的图像是倒的，所以改了一下读的顺序
@@ -681,7 +881,7 @@ static int _save2image_rotation(char *filename, unsigned char *bits, int width,
 static e_int32 inter_jpg_close(file_ptr_t *file) {
 	e_uint8 *jpg = (e_uint8 *) file->handle;
 	if (file->info.mode == E_WRITE) {
-		_save2image_rotation(file->info.file_name, jpg, file->info.width, file->info.height);
+		_save2image(file->info.file_name, jpg, file->info.width, file->info.height);
 	}
 	free(jpg);
 	return E_OK;
@@ -693,8 +893,19 @@ static e_int32 inter_jpg_write_row(file_ptr_t *file, e_uint32 row_idx, point_t* 
 	return E_ERROR;
 }
 static e_int32 inter_jpg_write_column(file_ptr_t *file, e_uint32 column_idx,
-		point_t* point) {
-	return E_ERROR;
+		point_t* pnts) {
+	unsigned int i;
+	e_uint8 *jpg = (e_uint8 *) file->handle;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
+	jpg += column_idx;
+
+	for (i = 0; i < file->info.height; i++)
+			{
+		(*jpg) = point->gray;
+		jpg += file->info.width;
+		point++;
+	}
+	return E_OK;
 }
 static e_int32 inter_jpg_append_points(file_ptr_t *file, point_t* pnts, int pt_num) {
 	e_uint8 *jpg = (e_uint8 *) file->handle;
@@ -871,8 +1082,23 @@ static e_int32 inter_gif_write_row(file_ptr_t *file, e_uint32 row_idx, point_t* 
 	return E_OK;
 }
 static e_int32 inter_gif_write_column(file_ptr_t *file, e_uint32 column_idx,
-		point_t* point) {
-	return E_ERROR;
+		point_t* pnts) {
+	e_int32 ret;
+	jpg_private_t *gif = (jpg_private_t *) file->handle;
+	point_gray_t *point = (point_gray_t*) pnts->mem;
+	e_uint8* pbuf = gif->buf + column_idx;
+
+	//add one row
+	for (unsigned int i = 0; i < file->info.height; i++)
+			{
+		(*pbuf) = point->gray;
+		pbuf += file->info.width;
+		point++;
+	}
+
+	ret = _insert_frame(file);
+	e_assert(ret > 0, ret);
+	return E_OK;
 }
 static e_int32 inter_gif_append_points(file_ptr_t *file, point_t* point, int pt_num) {
 	e_uint8 *gif = (e_uint8 *) file->handle;
@@ -929,8 +1155,10 @@ static e_int32 inter_sprite_open(file_ptr_t *file)
 	sprite_private_t *sprite = (sprite_private_t *) calloc(sizeof(sprite_private_t), 1);
 	size = file->info.width * file->info.height;
 	if (file->is_main) {
-		ret = sc_open_pipe(&sprite->connect, file->info.file_name, size);
+		//ret = sc_open_pipe(&sprite->connect, file->info.file_name, size);
+		ret = sc_open_socket(&sprite->connect, file->info.file_name, size,E_SOCKET_NAME);
 		if (e_failed(ret)) {
+			sc_close(&sprite->connect);
 			free(sprite);
 			return ret;
 		}
@@ -938,11 +1166,19 @@ static e_int32 inter_sprite_open(file_ptr_t *file)
 		h = file->info.height;
 		//发送长宽信息
 		sprintf((char*) buf, "ABCD%05d%05dEFGH", w, h);
-		ret = sc_send(&sprite->connect, buf, 18);
+		ret = sc_try_connect(&sprite->connect, 2);
 		if (e_failed(ret)) {
+			sc_close(&sprite->connect);
 			free(sprite);
 			return ret;
 		}
+		ret = sc_send(&sprite->connect, buf, 18);
+		if (e_failed(ret)) {
+			sc_close(&sprite->connect);
+			free(sprite);
+			return ret;
+		}
+		DMSG((STDOUT,"Success to create sprite.\n"));
 	}
 
 	if (file->is_main && file->info.mode == E_DWRITE) //主文件用于文件合并
@@ -1074,13 +1310,14 @@ static e_int32 inter_sprite_write_column(file_ptr_t *file, e_uint32 column_idx,
 	for (unsigned int i = 0; i < file->info.height; i++) {
 		(*pbuf) = point->gray;
 		pbuf += file->info.width;
-		if (file->is_main)
+		if (file->is_main && file->info.mode == E_DWRITE)
 			pbuf += file->info.width;
 		point++;
 	}
 	return E_OK;
 }
-static e_int32 inter_sprite_append_points(file_ptr_t *file, point_t* pnts, int pt_num) {
+static e_int32 inter_sprite_append_points(file_ptr_t *file, point_t* pnts,
+		int pt_num) {
 	sprite_private_t *sprite = (sprite_private_t *) file->handle;
 	point_gray_t *point = (point_gray_t*) pnts->mem;
 	while (pt_num--)

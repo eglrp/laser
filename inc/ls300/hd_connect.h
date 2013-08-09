@@ -36,8 +36,8 @@ typedef struct hd_connect_t {
 extern "C" {
 #endif
 
-e_int32 DEV_EXPORT sc_open_socket(hd_connect_t* sc, char* ip_address,
-		e_uint16 tcp_port);
+e_int32 DEV_EXPORT sc_open_socket(hd_connect_t* sc, char* sick_ip_address, e_uint16 sick_tcp_port,
+		int socket_type);
 e_int32 DEV_EXPORT sc_open_serial(hd_connect_t* sc, char* com_name,
 		e_uint32 baudrate);
 e_int32 DEV_EXPORT sc_open_pipe(hd_connect_t* sc, char* memory_name,
@@ -51,6 +51,7 @@ e_int32 DEV_EXPORT sc_state(hd_connect_t *sc);
 e_int32 DEV_EXPORT sc_select(hd_connect_t *sc, e_int32 type,
 		e_int32 timeout_usec);
 e_int32 DEV_EXPORT sc_connect(hd_connect_t *sc);
+e_int32 DEV_EXPORT sc_try_connect(hd_connect_t *sc,e_uint32 max_times);
 e_int32 DEV_EXPORT sc_recv(hd_connect_t *sc, e_uint8 *buffer, e_uint32 blen);
 e_int32 DEV_EXPORT sc_send(hd_connect_t *sc, e_uint8 *buffer, e_uint32 len);
 

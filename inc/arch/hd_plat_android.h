@@ -74,7 +74,7 @@ typedef	void*				e_handle;
 
 //--------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------
-#ifdef USE_STDOUT_LOG //linux
+#if USE_STDOUT_LOG //linux
 
 #ifdef MSG_LOG2FILE
 	#ifdef __cplusplus
@@ -84,7 +84,7 @@ typedef	void*				e_handle;
 	#endif
 	#define __stdout__ emap_ferr
 #else
-#define __stdout__ stdout
+	#define __stdout__ stdout
 #endif
 #define E_FPRINT fprintf
 

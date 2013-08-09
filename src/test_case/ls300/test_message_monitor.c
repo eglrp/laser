@@ -11,7 +11,7 @@
  *
  */
 
-
+#include "../hd_test_config.h"
 #if TEST_MSG_MONITOR
 #include "../hd_message_monitor.h"
 #include <hd_thread_api.h>

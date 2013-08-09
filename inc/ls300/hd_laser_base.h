@@ -63,6 +63,10 @@ static const e_uint8 MOTO_SUCCESS[] = { 'M', 'O', 'T', 'O', 'O', 'K', '!', 0 }; 
 static const e_uint8 STOP_WORK[] = { 'S', 'T', 'O', 'P', 0 };
 static const e_uint8 HALT_MSG[] = { 'H', 'A', 'L', 'T', '!', 0 };
 
+//测试控制板状态
+static const e_uint8 CHECK_STATUS[] = { 'S', 'T', 'S', 0 };
+static const e_uint8 CHECK_SUCCESS[] = { 'G','O',  ',',  'O',  'N',  '!', 0 };
+
 //搜索零点
 static const e_uint8 SEARCH_ZERO[] = { 'S', 'E', 'Z', 'E', 0 };
 static const e_uint8 SEARCH_SUCCESS[] = { 'S', 'E', 'Z', 'E', 'O', 'K', '!', 0 }; //success

@@ -56,13 +56,13 @@ void pool_cancle(scan_pool_t* pool)
 	pool->state = 2;
 }
 
-void pool_leave(scan_pool_t* pool)
-{
-	e_assert(pool&&pool->state);
-	while (pool->read_node != pool->write_node && pool->state == 1)
-		Delay(100);
-	pool->state = 2;
-}
+//void pool_leave(scan_pool_t* pool)
+//{
+//	e_assert(pool&&pool->state);
+//	while (pool->read_node != pool->write_node && pool->state == 1)
+//		Delay(100);
+//	pool->state = 2;
+//}
 
 /**
  *\brief 销毁共享队列。

@@ -38,7 +38,7 @@ e_int32 Pipe_Open(pipe_t *pip, char *name, int size, int mode)
 		 An open() for reading only will return without delay.
 		 An open() for writing only will return an error if
 		 no process currently has the file open for reading.
-		 If O_NONBLOCK is clear:
+		 * If O_NONBLOCK is clear:
 		 An open() for reading only will block the calling thread
 		 until a thread opens the file for writing.
 		 An open() for writing only will block the calling
@@ -54,6 +54,7 @@ e_int32 Pipe_Open(pipe_t *pip, char *name, int size, int mode)
 		}
 	}
 
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) ; //设置为非阻塞模式
 	//分配内存
 	pip->priv = (struct pipe_handle_t*) malloc(
 												sizeof(struct pipe_handle_t));
@@ -75,7 +76,8 @@ e_int32 Pipe_Close(pipe_t *pip)
 		/* close the pip */
 		if (close(pip->priv->pip_handle) == -1)
 				{
-			return E_ERROR;
+//			return E_ERROR;
+			DMSG((STDOUT,"close Pipe error:%d\n",errno));
 		}
 		free(pip->priv);
 	}
@@ -242,10 +244,10 @@ e_int32 Pipe_Write(pipe_t *pip, e_uint8 *data, e_int32 size)
 		Pipe_Select(pip, E_WRITE, pip->write_timeout_usec);
 	}
 
-	/* loop reading bytes from pip until all bytes are read or there is a timeout*/
+	/* loop writing bytes to pip until all bytes are write or there is a timeout*/
 	while (bytesWritten != size)
 	{
-		/* get bytes from pip */
+		/* write bytes to pip */
 		writeCount = write(pip->priv->pip_handle, data + bytesWritten,
 							size - bytesWritten);
 

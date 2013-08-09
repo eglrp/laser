@@ -33,9 +33,9 @@ e_uint8 hd_compute_xor(const e_uint8 * const data, const e_uint32 length) {
 
 void hd_polar2xyz(float *x, float *y, float *z, double distance, float angle_h,
 		float angle_v) {
-	angle_v = (angle_v-90.0) * M_PI/180.0;
-	angle_h = angle_h * M_PI/180.0;
-	(*x) = distance * cos(angle_v) * cos(angle_h);
-	(*y) = distance * cos(angle_v) * sin(angle_h);
-	(*z) = distance * sin(angle_v);
+	angle_v = (angle_v-(double)90.0) * M_PI/180.0;
+	angle_h = (double)angle_h * M_PI/180.0;
+	(*x) = distance * 1e3 * cos(angle_v) * cos(angle_h) / 1e3;
+	(*y) = distance * 1e3 * cos(angle_v) * sin(angle_h) / 1e3;
+	(*z) = distance * 1e3 * sin(angle_v) / 1e3;
 }

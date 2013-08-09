@@ -22,7 +22,7 @@ enum {
 };
 
 static char tostring[1024];
-
+#define CONNECT_DELAY (1000) //ms
 /**
  *\brief 创建套接字连接，并设置套接字相应得属性。
  *\param sc 定义了海达连接的对象指针。
@@ -30,7 +30,8 @@ static char tostring[1024];
  *\param sick_tcp_port 定义了套接字的端口号。
  *\retval E_OK 表示成功。
  */
-e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address, e_uint16 sick_tcp_port) {
+e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address, e_uint16 sick_tcp_port,
+		int socket_type) {
 	int ret;
 	e_assert(sc, E_ERROR_INVALID_HANDLER);
 	memset(sc, 0, sizeof(hd_connect_t));
@@ -42,7 +43,7 @@ e_int32 sc_open_socket(hd_connect_t* sc, char* sick_ip_address, e_uint16 sick_tc
 		sick_tcp_port = DEFAULT_SICK_TCP_PORT;
 	}
 
-	ret = Socket_Open(&sc->socket, sick_ip_address, sick_tcp_port, E_TCP);
+	ret = Socket_Open(&sc->socket, sick_ip_address, sick_tcp_port, socket_type);
 	e_assert(ret>0, ret);
 	sc->state = E_OK;
 	sc->mask = E_CONNECT_SOCKET;
@@ -178,10 +179,23 @@ e_int32 sc_connect(hd_connect_t *sc) {
 	case E_CONNECT_COM:
 		return Serial_Select(&sc->serial, E_WRITE, DEFAULT_COM_TIMEOUT);
 	case E_CONNECT_PIPE:
-		return sc->pipe.state ? E_OK : E_ERROR;
+		return Pipe_Select(&sc->pipe, E_WRITE, DEFAULT_COM_TIMEOUT);
 	default:
 		return E_ERROR_INVALID_HANDLER;
 	}
+}
+
+e_int32 sc_try_connect(hd_connect_t *sc, e_uint32 max_times) {
+	unsigned int try = 0;
+	e_int32 ret;
+	ret = sc_connect(sc);
+	while (ret <= 0 && ++try < max_times) {
+		Delay(CONNECT_DELAY);
+		ret = sc_connect(sc);
+		if (ret == E_ERROR_INVALID_HANDLER || ret == E_ERROR_INVALID_STATUS)
+			break;
+	}
+	return ret;
 }
 
 /**

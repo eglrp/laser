@@ -89,8 +89,8 @@ e_int32 DEV_EXPORT hl_turntable_config(laser_control_t *lc, e_uint32 step_delay,
 //根据实际传过来的水平旋转角度，调整水平台，以较快速度转到实际水平台的起始角度/转台回到起始原点
 e_int32 DEV_EXPORT hl_turntable_turn(laser_control_t *lc, e_float64 angle);
 
-//设置相机参数/设置是否开启相机彩色扫描
-e_int32 DEV_EXPORT hl_camera_config(laser_control_t *lc, e_bool color);
+e_int32 DEV_EXPORT hl_turntable_check(laser_control_t *lc);
+
 
 //相机拍照
 e_int32 DEV_EXPORT hl_camera_take_photo(laser_control_t *lc);
@@ -108,10 +108,10 @@ e_int32 DEV_EXPORT hl_get_tilt(laser_control_t *lc, angle_t* angle);
 e_float64 DEV_EXPORT hl_get_battery(laser_control_t *lc);
 
 //亮红灯
-e_int32 DEV_EXPORT hl_led_Red(laser_control_t *lc);
+e_int32 DEV_EXPORT hl_led_red(laser_control_t *lc);
 
 //亮绿灯
-e_int32 DEV_EXPORT hl_led_greed(laser_control_t *lc);
+e_int32 DEV_EXPORT hl_led_green(laser_control_t *lc);
 
 //LED熄灭
 e_int32 DEV_EXPORT hl_led_off(laser_control_t *lc);
